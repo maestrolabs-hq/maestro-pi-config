@@ -38,6 +38,28 @@ fmt:
     cargo fmt --all
     npx biome format --write .
 
+# A fresh machine, end to end: install what is needed, then write config.
+# Both halves refuse to act without --apply, so read the plan first.
+bootstrap:
+    @echo "--- what would be installed ---"
+    cargo run --quiet -- provision
+    @echo
+    @echo "--- what would be written ---"
+    cargo run --quiet -- restore
+    @echo
+    @echo "Reviewed? Then: just bootstrap-apply"
+
+bootstrap-apply:
+    cargo run --quiet -- provision --apply
+    cargo run --quiet -- restore --apply
+
+# What has to be installed before configuration means anything.
+provision:
+    cargo run --quiet -- provision
+
+provision-apply:
+    cargo run --quiet -- provision --apply
+
 # Is this machine's configuration still what the repository holds?
 status:
     cargo run --quiet -- status

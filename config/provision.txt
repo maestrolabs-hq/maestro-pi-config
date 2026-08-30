@@ -1,0 +1,42 @@
+# Provisioning manifest: what to install before restoring configuration.
+#
+# One step per line: <kind> <argument>. Order matters.
+# Versions are pinned. Moving one is a deliberate edit, not a drift.
+#
+# Prerequisites this cannot install for you: a Rust toolchain (rustup),
+# Node 24 LTS, uv, and pi itself.
+
+# Python tools, via uv.
+uv codegraphcontext==0.6.8
+uv graphifyy==0.9.51
+uv mempalace==3.8.0
+uv specify-cli==1.0.1
+
+# Rust tools, via cargo-binstall.
+cargo just@1.58.0
+cargo prek@0.5.0
+cargo cargo-deny@0.20.2
+cargo cargo-machete@0.9.2
+
+# Rust toolchain components the gates need.
+rustup-component clippy
+rustup-component rustfmt
+
+# Pi packages. Declared in settings.json too; this installs them.
+pi npm:pi-web-access
+pi npm:@juicesharp/rpiv-ask-user-question
+pi npm:@juicesharp/rpiv-todo
+pi npm:@narumitw/pi-usage
+pi npm:pi-subagents
+pi npm:pi-lens
+pi npm:@dietrichgebert/ponytail
+pi npm:context-mode
+pi npm:pi-claude-bridge
+pi npm:pi-mcp-adapter
+pi git:github.com/obra/superpowers
+pi git:github.com/mattpocock/skills@6654f6b60cd9d5be8b54c6fafe44346dabeb3b76
+pi git:github.com/robonuggets/gauntlet-loop
+
+# Standalone binaries. Fetched, not built.
+binary github-mcp-server https://github.com/github/github-mcp-server
+binary gh https://github.com/cli/cli

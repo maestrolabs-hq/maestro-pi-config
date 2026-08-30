@@ -44,7 +44,7 @@ Declared in `config/pi/settings.json`; `pi install` restores them.
 - just 1.58.0
 - prek 0.5.0
 - cargo-deny 0.20.2
-- 0.9.2
+- cargo-machete 0.9.2
 
 ## Standalone binaries
 

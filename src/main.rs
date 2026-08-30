@@ -5,6 +5,7 @@
 
 mod config;
 mod manifest;
+mod provision;
 
 use std::env;
 use std::path::PathBuf;
@@ -20,7 +21,7 @@ fn repo_root() -> PathBuf {
 }
 
 fn usage() -> ExitCode {
-    eprintln!("usage: pi-config <status|sync|restore [--apply]>");
+    eprintln!("usage: pi-config <status|sync|restore [--apply]|provision [--apply]>");
     ExitCode::from(2)
 }
 
@@ -105,6 +106,53 @@ fn main() -> ExitCode {
                     ExitCode::FAILURE
                 }
             }
+        }
+        "provision" => {
+            let apply = args.iter().any(|a| a == "--apply");
+            let text = match std::fs::read_to_string(root.join("config/provision.txt")) {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("pi-config: cannot read the provisioning manifest: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let steps = match provision::parse(&text) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("pi-config: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            for s in &steps {
+                if apply {
+                    println!("  $ {}", s.rendered());
+                    if let Err(e) = provision::run(s) {
+                        eprintln!("pi-config: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                } else {
+                    println!("  would run  {}", s.rendered());
+                }
+            }
+            let manual = provision::manual(&text);
+            if !manual.is_empty() {
+                println!("\nFetch by hand, then put on PATH:");
+                for m in &manual {
+                    println!("  {m}");
+                }
+            }
+            if apply {
+                println!(
+                    "\n{} step(s) ran. Next: pi-config restore --apply",
+                    steps.len()
+                );
+            } else {
+                println!(
+                    "\n{} step(s) would run. Nothing changed. Re-run with --apply.",
+                    steps.len()
+                );
+            }
+            ExitCode::SUCCESS
         }
         _ => usage(),
     }

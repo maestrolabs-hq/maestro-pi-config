@@ -19,6 +19,27 @@ should reproduce the same behaviour, minus credentials.
 | `shell/cargo-env.sh` | appended to shell rc | puts our runtime on `PATH` |
 | `INVENTORY.md` | — | versions and where each binary came from |
 
+## Restoring on a fresh machine
+
+Configuration is worthless if what it names is not installed. `settings.json`
+declares packages; `mcp.json` names binaries. Neither is any use on a machine
+that has none of them, so provisioning comes first.
+
+```text
+just bootstrap        # prints both plans, changes nothing
+just bootstrap-apply  # installs, then writes
+```
+
+`config/provision.txt` is the manifest: pinned versions, one step per line.
+Moving a version there is a deliberate edit.
+
+Four things it cannot install for you, because they are its prerequisites:
+rustup, Node 24, uv, and pi. Two more are fetched by hand, because guessing a
+release asset name silently installs the wrong thing: `gh` and
+`github-mcp-server`.
+
+The last step is always re-authenticating. Credentials are not here.
+
 ## What is deliberately absent
 
 Credentials never leave the machine they were issued on. `auth.json` and the
