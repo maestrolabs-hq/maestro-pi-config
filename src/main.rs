@@ -5,13 +5,14 @@
 
 mod config;
 mod manifest;
+mod plan;
 mod provision;
 
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use config::{State, restore, status, sync};
+use config::{State, status, sync};
 use manifest::{home, manifest};
 
 /// The repository root: the directory holding this crate's `Cargo.toml`,
@@ -20,8 +21,29 @@ fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
+/// Only what changes. A plan that lists what it will not do buries what it will.
+fn render(p: &plan::Plan) {
+    if p.is_empty() {
+        println!("No changes. This machine matches the repository.");
+        if p.unchanged > 0 {
+            println!("({} file(s) already in place.)", p.unchanged);
+        }
+        return;
+    }
+    println!("pi-config will perform the following actions:\n");
+    for a in &p.actions {
+        println!("  {} {}", a.change.symbol(), a.target.display());
+    }
+    println!(
+        "\nPlan: {} to add, {} to change, {} unchanged.",
+        p.creates(),
+        p.updates(),
+        p.unchanged
+    );
+}
+
 fn usage() -> ExitCode {
-    eprintln!("usage: pi-config <status|sync|restore [--apply]|provision [--apply]>");
+    eprintln!("usage: pi-config <status|sync|plan|apply [--auto-approve]|provision [--apply]>");
     ExitCode::from(2)
 }
 
@@ -83,32 +105,47 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
-        "restore" => {
-            let apply = args.iter().any(|a| a == "--apply");
-            match restore(&entries, &root, &home_str, apply) {
-                Ok(touched) => {
-                    let verb = if apply { "wrote" } else { "would write" };
-                    for t in &touched {
-                        println!("  {verb} {t}");
-                    }
-                    if apply {
-                        println!("\n{} file(s) restored.", touched.len());
-                    } else {
-                        println!(
-                            "\n{} file(s) would be written. Nothing changed. Re-run with --apply.",
-                            touched.len()
-                        );
-                    }
+        "plan" => {
+            let p = plan::plan(&entries, &root, &home_str);
+            render(&p);
+            if p.is_empty() {
+                ExitCode::SUCCESS
+            } else {
+                println!("\nRun `just apply` to carry this out.");
+                ExitCode::SUCCESS
+            }
+        }
+        "apply" => {
+            let p = plan::plan(&entries, &root, &home_str);
+            render(&p);
+            if p.is_empty() {
+                return ExitCode::SUCCESS;
+            }
+            if !args.iter().any(|a| a == "--auto-approve") {
+                println!(
+                    "\nRefusing to change {} file(s) unprompted.",
+                    p.actions.len()
+                );
+                println!("Review the plan above, then: just apply --auto-approve");
+                return ExitCode::FAILURE;
+            }
+            match plan::apply(&p) {
+                Ok(()) => {
+                    println!(
+                        "\nApply complete. {} added, {} changed.",
+                        p.creates(),
+                        p.updates()
+                    );
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
-                    eprintln!("pi-config: restore failed: {e}");
+                    eprintln!("pi-config: apply failed: {e}");
                     ExitCode::FAILURE
                 }
             }
         }
         "provision" => {
-            let apply = args.iter().any(|a| a == "--apply");
+            let apply = args.iter().any(|a| a == "--apply" || a == "--auto-approve");
             let text = match std::fs::read_to_string(root.join("config/provision.txt")) {
                 Ok(t) => t,
                 Err(e) => {

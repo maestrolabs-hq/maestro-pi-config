@@ -26,11 +26,16 @@ declares packages; `mcp.json` names binaries. Neither is any use on a machine
 that has none of them, so provisioning comes first.
 
 ```text
-just bootstrap            # prints the plan, changes nothing
-just bootstrap --apply    # installs, then writes
+just bootstrap                 # the whole plan, changes nothing
+just bootstrap --auto-approve  # installs, then converges configuration
 ```
 
-`provision` and `restore` take the same flag and can be run on their own.
+`provision`, `plan` and `apply` can be run on their own.
+
+Configuration follows `terraform plan` / `terraform apply`. A plan reports only
+what would actually change, so a machine already in step reads `No changes`
+rather than a list of files it would rewrite identically. An apply prints the
+same plan and refuses to act without `--auto-approve`.
 
 `config/provision.txt` is the manifest: pinned versions, one step per line.
 Moving a version there is a deliberate edit.

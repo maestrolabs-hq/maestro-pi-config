@@ -38,22 +38,28 @@ fmt:
     cargo fmt --all
     npx biome format --write .
 
-# A fresh machine, end to end: install what is needed, then write config.
-# Prints a plan and changes nothing; pass --apply to act.
+# What a restore would change on this machine. Reads only.
+plan:
+    cargo run --quiet -- plan
+
+# Carry out the plan. Prints it again, and refuses to act without approval.
 #
-#   just bootstrap            what would happen
-#   just bootstrap --apply    make it happen
-bootstrap *FLAGS:
-    cargo run --quiet -- provision {{FLAGS}}
-    cargo run --quiet -- restore {{FLAGS}}
+#   just apply                 shows the plan, changes nothing
+#   just apply --auto-approve  carries it out
+apply *FLAGS:
+    cargo run --quiet -- apply {{FLAGS}}
 
 # What has to be installed before configuration means anything.
 provision *FLAGS:
     cargo run --quiet -- provision {{FLAGS}}
 
-# Repository -> machine.
-restore *FLAGS:
-    cargo run --quiet -- restore {{FLAGS}}
+# A fresh machine, end to end: install, then converge configuration.
+#
+#   just bootstrap                 the whole plan, changes nothing
+#   just bootstrap --auto-approve  carries it out
+bootstrap *FLAGS:
+    cargo run --quiet -- provision {{FLAGS}}
+    cargo run --quiet -- apply {{FLAGS}}
 
 # Is this machine's configuration still what the repository holds?
 status:

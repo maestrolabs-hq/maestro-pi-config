@@ -4,7 +4,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::manifest::{Entry, Kind, from_template, to_template};
+use crate::manifest::{Entry, Kind, to_template};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -62,15 +62,6 @@ fn read(path: &Path) -> Option<String> {
 fn as_stored(text: &str, entry: &Entry, home: &str) -> String {
     if entry.templated {
         to_template(text, home)
-    } else {
-        text.to_owned()
-    }
-}
-
-/// Live form of a stored file.
-fn as_live(text: &str, entry: &Entry, home: &str) -> String {
-    if entry.templated {
-        from_template(text, home)
     } else {
         text.to_owned()
     }
@@ -173,57 +164,4 @@ pub fn sync(entries: &[Entry], root: &Path, home: &str) -> io::Result<Vec<String
         }
     }
     Ok(written)
-}
-
-/// Repository to machine. Nothing is written unless `apply`: this overwrites
-/// live configuration, so the default has to be harmless.
-pub fn restore(entries: &[Entry], root: &Path, home: &str, apply: bool) -> io::Result<Vec<String>> {
-    let mut touched = Vec::new();
-    for entry in entries {
-        let repo_path = root.join(entry.repo);
-        if !repo_path.exists() {
-            continue;
-        }
-        let mut put = |target: PathBuf, text: String| -> io::Result<()> {
-            touched.push(target.display().to_string());
-            if !apply {
-                return Ok(());
-            }
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(&target, text)?;
-            set_executable(&target, entry.executable)
-        };
-        match entry.kind {
-            Kind::File => {
-                if let Some(stored) = read(&repo_path) {
-                    put(entry.live.clone(), as_live(&stored, entry, home))?;
-                }
-            }
-            Kind::Dir => {
-                for rel in files_under(&repo_path) {
-                    if let Some(stored) = read(&repo_path.join(&rel)) {
-                        put(entry.live.join(&rel), as_live(&stored, entry, home))?;
-                    }
-                }
-            }
-        }
-    }
-    Ok(touched)
-}
-
-#[cfg(unix)]
-fn set_executable(path: &Path, executable: bool) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    if executable {
-        fs::set_permissions(path, fs::Permissions::from_mode(0o755))?;
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn set_executable(_path: &Path, _executable: bool) -> io::Result<()> {
-    // Windows has no executable bit; a .ps1 or .cmd is run by its extension.
-    Ok(())
 }
