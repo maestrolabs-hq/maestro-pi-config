@@ -10,43 +10,53 @@ export PATH := home_directory() / ".cargo" / "bin" + path_sep + home_directory()
 
 # Install what this repository needs. Idempotent.
 install:
+    rustup toolchain install --profile minimal 1.98.0
+    rustup component add clippy rustfmt
+    cargo binstall -y prek cargo-deny cargo-machete
     npm ci --no-audit --no-fund || npm install --no-audit --no-fund
-    cargo binstall -y prek
 
 # Wire the local hooks. Both types come from default_install_hook_types.
 setup:
     prek install --install-hooks
 
 # Run the quality gates. CI runs these same commands, not equivalents.
+#
+# `tsc --noEmit` and `node --test` are configured but absent here until the
+# first shim lands: tsc exits TS18003 with no inputs, and a gate that fails
+# for want of input catches nothing. Biome still covers the JSON.
 check:
+    cargo fmt --all --check
+    cargo clippy --all-targets --all-features -- -D warnings
+    cargo test
+    cargo machete
+    cargo deny check
     npx biome format .
     npx biome lint .
-    npx tsc --noEmit
-    node --test
-
-# Is this machine's configuration still what the repository holds?
-status:
-    node tools/cli.ts status
-
-# Machine -> repository. Drift becomes a git diff; review it before committing.
-sync:
-    node tools/cli.ts sync
-
-# Repository -> machine. Prints what it would write and changes nothing.
-restore:
-    node tools/cli.ts restore
-
-# Repository -> machine, for real. Overwrites live configuration.
-restore-apply:
-    node tools/cli.ts restore --apply
 
 # Format in place. `check` only verifies.
 fmt:
+    cargo fmt --all
     npx biome format --write .
+
+# Is this machine's configuration still what the repository holds?
+status:
+    cargo run --quiet -- status
+
+# Machine -> repository. Drift becomes a git diff; review it before committing.
+sync:
+    cargo run --quiet -- sync
+
+# Repository -> machine. Prints what it would write and changes nothing.
+restore:
+    cargo run --quiet -- restore
+
+# Repository -> machine, for real. Overwrites live configuration.
+restore-apply:
+    cargo run --quiet -- restore --apply
 
 # Prove the gates do not depend on the ambient PATH.
 doctor:
     @echo "just    $(command -v just)"
-    @echo "node    $(command -v node) $(node --version)"
-    @echo "npm     $(command -v npm)"
+    @echo "cargo   $(command -v cargo)"
     @echo "prek    $(command -v prek)"
+    @echo "rustc   $(rustc --version)"

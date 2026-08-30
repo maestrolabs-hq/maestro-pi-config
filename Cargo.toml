@@ -1,0 +1,14 @@
+[package]
+name = "maestro-pi-config"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Capture, inspect and restore the pi configuration of a machine"
+
+[[bin]]
+name = "pi-config"
+path = "src/main.rs"
+
+# No application dependencies. The home directory is read from the
+# environment, which is all this needs and keeps the supply chain empty.
+[dependencies]
