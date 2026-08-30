@@ -1,0 +1,49 @@
+{
+  "mcpServers": {
+    "context7": {
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless",
+        "--isolated"
+      ]
+    },
+    "playwright-headed": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ]
+    },
+    "mempalace": {
+      "command": "mempalace-mcp"
+    },
+    "github": {
+      "command": "github-mcp-server",
+      "args": [
+        "stdio"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "!gh auth token"
+      }
+    },
+    "graphify": {
+      "command": "graphify-mcp",
+      "args": [
+        "global-graph.json"
+      ],
+      "cwd": "~/.graphify"
+    },
+    "codegraph": {
+      "command": "cgc",
+      "args": [
+        "mcp",
+        "start"
+      ]
+    }
+  }
+}

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+asr=/home/franc/models/audio/stt/qwen/qwen3-asr-1.7b
+aligner=/home/franc/models/audio/stt/qwen/qwen3-forced-aligner-0.6b
+
+if [[ ! -s "$asr/model.safetensors.index.json" ]]; then
+  printf 'Qwen ASR model is incomplete: %s\n' "$asr" >&2
+  exit 1
+fi
+
+if [[ ! -s "$aligner/model.safetensors" ]]; then
+  printf 'Qwen ForcedAligner model is incomplete: %s\n' "$aligner" >&2
+  exit 1
+fi
+
+if pgrep -x llama-server >/dev/null; then
+  printf 'llama-server is using the GPU. Run stop-qwen-server first.\n' >&2
+  exit 1
+fi
+
+if pgrep -f '[q]wen-asr-demo' >/dev/null; then
+  printf 'Qwen STT is already running.\n' >&2
+  exit 1
+fi
+
+export HF_HOME=/home/franc/models/.cache/huggingface
+
+exec /home/franc/src/qwen3-asr/.venv/bin/qwen-asr-demo \
+  --asr-checkpoint "$asr" \
+  --aligner-checkpoint "$aligner" \
+  --backend transformers \
+  --cuda-visible-devices 0 \
+  --ip 127.0.0.1 \
+  --port "${STT_PORT:-8002}" \
+  --backend-kwargs '{"device_map":"cuda:0","dtype":"bfloat16","max_inference_batch_size":8,"max_new_tokens":4096}' \
+  --aligner-kwargs '{"device_map":"cuda:0","dtype":"bfloat16"}'

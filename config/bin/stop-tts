@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if pkill -TERM -f '[q]wen-tts-demo'; then
+  printf 'Stop signal sent to Qwen TTS.\n'
+else
+  printf 'Qwen TTS is not running.\n'
+fi

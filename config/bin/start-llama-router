@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if pgrep -x llama-server >/dev/null; then
+  printf 'A llama-server process is already running.\n' >&2
+  exit 1
+fi
+
+export LLAMA_CACHE=/home/franc/models/.cache/llama.cpp
+
+exec /home/franc/src/llama.cpp-fastmtp-hauhaucs/build-cuda-13.3/bin/llama-server \
+  --models-preset /home/franc/models/llm/models.ini \
+  --models-autoload \
+  --models-max 1 \
+  --jinja \
+  --tools all \
+  --host 127.0.0.1 \
+  --port 8080

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+model=/home/franc/models/llm/qwen/qwen3.8-27b-uncensored-hauhaucs/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q5_K_P.gguf
+draft=/home/franc/models/llm/qwen/qwen3.8-27b-uncensored-hauhaucs/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-FastMTP-32K.gguf
+mmproj=/home/franc/models/llm/qwen/qwen3.8-27b-uncensored-hauhaucs/mmproj-Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-BF16.gguf
+server=/home/franc/src/llama.cpp-fastmtp-hauhaucs/build-cuda-13.3/bin/llama-server
+
+for required_file in "$model" "$draft" "$mmproj" "$server"; do
+  if [[ ! -s "$required_file" ]]; then
+    printf 'Missing required file: %s\n' "$required_file" >&2
+    exit 1
+  fi
+done
+
+if pgrep -x llama-server >/dev/null; then
+  printf 'A llama-server process is already running. Run stop-qwen-server first.\n' >&2
+  exit 1
+fi
+
+export LLAMA_CACHE=/home/franc/models/.cache/llama.cpp
+
+exec "$server" \
+  --model "$model" \
+  --spec-draft-model "$draft" \
+  --mmproj "$mmproj" \
+  --n-gpu-layers all \
+  --spec-draft-ngl all \
+  --ctx-size "${LLAMA_CTX_SIZE:-131072}" \
+  --cache-type-k q8_0 \
+  --cache-type-v q8_0 \
+  --flash-attn on \
+  --parallel 1 \
+  --kv-unified \
+  --spec-type draft-mtp \
+  --spec-draft-n-max 3 \
+  --spec-draft-p-min 0 \
+  --batch-size 2048 \
+  --ubatch-size 512 \
+  --split-mode none \
+  --load-mode mmap \
+  --image-min-tokens 1024 \
+  --jinja \
+  --reasoning-format deepseek \
+  --reasoning-preserve \
+  --fit on \
+  --fit-target 1536 \
+  --tools all \
+  --alias qwen3.8-27b-uncensored \
+  --host 127.0.0.1 \
+  --port "${LLAMA_PORT:-8080}"

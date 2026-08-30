@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if pgrep -x llama-server >/dev/null; then
+  printf 'llama-server is using the GPU. Run stop-qwen-server first.\n' >&2
+  exit 1
+fi
+
+if pgrep -f '[q]wen-tts-demo' >/dev/null; then
+  printf 'Qwen TTS is already running.\n' >&2
+  exit 1
+fi
+
+export HF_HOME=/home/franc/models/.cache/huggingface
+
+exec /home/franc/qwen3-tts-local/.venv/bin/qwen-tts-demo \
+  --checkpoint Qwen/Qwen3-TTS-12Hz-1.7B-Base \
+  --device cuda:0 \
+  --dtype bfloat16 \
+  --no-flash-attn \
+  --ip 127.0.0.1 \
+  --port "${TTS_PORT:-8001}" \
+  --no-share

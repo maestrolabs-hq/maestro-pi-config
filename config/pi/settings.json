@@ -1,0 +1,39 @@
+{
+  "lastChangelogVersion": "0.84.4",
+  "theme": "dark",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
+  "packages": [
+    "npm:pi-web-access",
+    "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:@juicesharp/rpiv-todo",
+    "npm:@narumitw/pi-usage",
+    "npm:pi-subagents",
+    "npm:pi-lens",
+    "npm:@dietrichgebert/ponytail",
+    "npm:context-mode",
+    "npm:pi-claude-bridge",
+    "npm:pi-mcp-adapter",
+    "git:github.com/obra/superpowers",
+    {
+      "source": "git:github.com/mattpocock/skills@6654f6b60cd9d5be8b54c6fafe44346dabeb3b76",
+      "extensions": [],
+      "skills": [
+        "skills/productivity/handoff",
+        "skills/productivity/teach",
+        "skills/productivity/to-questionnaire",
+        "skills/productivity/wait-what",
+        "skills/engineering/domain-modeling",
+        "skills/engineering/grill-with-docs",
+        "skills/productivity/grilling",
+        "skills/engineering/wayfinder",
+        "skills/engineering/research",
+        "skills/engineering/prototype"
+      ],
+      "prompts": [],
+      "themes": []
+    },
+    "git:github.com/robonuggets/gauntlet-loop"
+  ],
+  "tuiMode": "regular"
+}

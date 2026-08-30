@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if pgrep -x llama-server >/dev/null; then
+  printf 'A llama-server process is already running.\n' >&2
+  exit 1
+fi
+
+export LLAMA_CACHE=/home/franc/models/.cache/llama.cpp
+
+exec /home/franc/.local/bin/llama-server \
+  -m /home/franc/models/llm/qwen/qwen3.6-27b/Qwen3.6-27B-Q6_K.gguf \
+  -c 131072 \
+  -ctk q8_0 \
+  -ctv q8_0 \
+  -fa on \
+  -np 1 \
+  --kv-unified \
+  --spec-type draft-mtp \
+  --spec-draft-n-max 2 \
+  --jinja \
+  --reasoning-format deepseek \
+  --fit on \
+  --fit-target 1536 \
+  --tools all \
+  --host 127.0.0.1 \
+  --port 8080
