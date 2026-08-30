@@ -15,15 +15,21 @@ fn scratch(name: &str) -> PathBuf {
 }
 
 fn run(home: &Path, args: &[&str]) -> (String, bool) {
-    let out = Command::new(env!("CARGO_BIN_EXE_pi-config"))
-        .args(args)
+    run_in(home, None, args)
+}
+
+fn run_in(home: &Path, repo: Option<&Path>, args: &[&str]) -> (String, bool) {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_pi-config"));
+    cmd.args(args)
         .env("HOME", home)
         .env("USERPROFILE", home)
         .env_remove("XDG_CONFIG_HOME")
         .env_remove("PI_AGENT_DIR")
-        .env_remove("PI_CONFIG_BIN_DIR")
-        .output()
-        .expect("run pi-config");
+        .env_remove("PI_CONFIG_BIN_DIR");
+    if let Some(repo) = repo {
+        cmd.env("PI_CONFIG_REPO", repo);
+    }
+    let out = cmd.output().expect("run pi-config");
     (
         String::from_utf8_lossy(&out.stdout).into_owned(),
         out.status.success(),
@@ -183,7 +189,7 @@ fn a_plan_is_refused_once_the_repository_moves_under_it() {
 
     let plan = home.join("plan.out");
     let f = plan.display().to_string();
-    let (_, ok) = run_in(&home, &repo, &["plan", "--out", &f]);
+    let (_, ok) = run_in(&home, Some(&repo), &["plan", "--out", &f]);
     assert!(ok, "planning against the copy should work");
 
     // Edit a source the plan actually names. A constant hash cannot tell this
@@ -223,23 +229,6 @@ fn copy_repo_into(dest: &Path) {
     }
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config");
     copy(&src, &dest.join("config"));
-}
-
-fn run_in(home: &Path, repo: &Path, args: &[&str]) -> (String, bool) {
-    let out = Command::new(env!("CARGO_BIN_EXE_pi-config"))
-        .args(args)
-        .env("HOME", home)
-        .env("USERPROFILE", home)
-        .env("PI_CONFIG_REPO", repo)
-        .env_remove("XDG_CONFIG_HOME")
-        .env_remove("PI_AGENT_DIR")
-        .env_remove("PI_CONFIG_BIN_DIR")
-        .output()
-        .expect("run pi-config");
-    (
-        String::from_utf8_lossy(&out.stdout).into_owned(),
-        out.status.success(),
-    )
 }
 
 #[test]

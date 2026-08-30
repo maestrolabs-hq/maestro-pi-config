@@ -54,6 +54,12 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: cargo-similarity
+        name: similarity-rs (copy-paste, allowlisted)
+        entry: cargo test --test duplication
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: cargo-machete
         name: cargo machete (unused dependencies)
         entry: cargo machete

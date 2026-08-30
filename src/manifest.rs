@@ -28,24 +28,22 @@ pub struct Entry {
 }
 
 impl Entry {
-    fn file(repo: &'static str, live: PathBuf) -> Self {
+    fn new(repo: &'static str, live: PathBuf, kind: Kind) -> Self {
         Self {
             repo,
             live,
-            kind: Kind::File,
+            kind,
             templated: false,
             executable: false,
         }
     }
 
+    fn file(repo: &'static str, live: PathBuf) -> Self {
+        Self::new(repo, live, Kind::File)
+    }
+
     fn dir(repo: &'static str, live: PathBuf) -> Self {
-        Self {
-            repo,
-            live,
-            kind: Kind::Dir,
-            templated: false,
-            executable: false,
-        }
+        Self::new(repo, live, Kind::Dir)
     }
 
     fn templated(mut self) -> Self {

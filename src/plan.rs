@@ -6,10 +6,17 @@
 //! A saved plan records what each target held when the plan was made. Applying
 //! it re-reads both the repository and the machine and refuses if either moved,
 //! so an apply can never quietly do something other than what was approved.
+//!
+//! This module decides. `file` persists a decision, `apply` carries one out --
+//! and `apply` is the only code here that writes to the user's machine.
 
-use std::fmt::Write;
+mod apply;
+mod file;
+
+pub use apply::{apply, apply_saved};
+pub use file::{load, save};
+
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::manifest::{Entry, Kind, from_template};
@@ -67,18 +74,16 @@ pub struct Plan {
 }
 
 impl Plan {
+    fn count(&self, change: Change) -> usize {
+        self.actions.iter().filter(|a| a.change == change).count()
+    }
+
     pub fn creates(&self) -> usize {
-        self.actions
-            .iter()
-            .filter(|a| a.change == Change::Create)
-            .count()
+        self.count(Change::Create)
     }
 
     pub fn updates(&self) -> usize {
-        self.actions
-            .iter()
-            .filter(|a| a.change == Change::Update)
-            .count()
+        self.count(Change::Update)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -199,18 +204,6 @@ pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
     plan
 }
 
-/// Carry out a plan. Every action was decided before this ran.
-pub fn apply(plan: &Plan) -> io::Result<()> {
-    for action in &plan.actions {
-        if let Some(parent) = action.target.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(&action.target, &action.content)?;
-        set_executable(&action.target, action.executable)?;
-    }
-    Ok(())
-}
-
 #[cfg(unix)]
 fn mode_is_correct(path: &Path, executable: bool) -> bool {
     use std::os::unix::fs::PermissionsExt;
@@ -223,150 +216,4 @@ fn mode_is_correct(path: &Path, executable: bool) -> bool {
 #[cfg(not(unix))]
 fn mode_is_correct(_path: &Path, _executable: bool) -> bool {
     true
-}
-
-#[cfg(unix)]
-fn set_executable(path: &Path, executable: bool) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    if executable {
-        fs::set_permissions(path, fs::Permissions::from_mode(0o755))?;
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn set_executable(_path: &Path, _executable: bool) -> io::Result<()> {
-    Ok(())
-}
-
-// ---------------------------------------------------------------- persistence
-
-const HEADER: &str = "pi-config plan v1";
-
-/// A saved plan. One action per line, tab-separated, so it can be read without
-/// a parser dependency and eyeballed without a tool.
-///
-/// Content is not stored: the plan names its source in the repository and the
-/// digest that source had. Applying re-reads it and checks. That keeps the file
-/// small and makes a repository edit after planning a refusal rather than a
-/// surprise.
-pub fn save(plan: &Plan, sources: &[(PathBuf, u64)], path: &Path) -> io::Result<()> {
-    let mut out = String::from(HEADER);
-    out.push('\n');
-    for (action, (source, source_digest)) in plan.actions.iter().zip(sources) {
-        let _ = writeln!(
-            out,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            match action.change {
-                Change::Create => "create",
-                Change::Update => "update",
-            },
-            action.target.display(),
-            source.display(),
-            source_digest,
-            action
-                .observed
-                .map_or_else(|| "absent".to_owned(), |d| d.to_string()),
-            action.executable,
-            action.templated,
-        );
-    }
-    fs::write(path, out)
-}
-
-#[derive(Debug)]
-pub struct SavedAction {
-    pub change: Change,
-    pub target: PathBuf,
-    pub source: PathBuf,
-    pub source_digest: u64,
-    pub observed: Option<u64>,
-    pub executable: bool,
-    /// Carried in the plan rather than recomputed from the manifest: a manifest
-    /// edited between plan and apply must not change what the plan does.
-    pub templated: bool,
-}
-
-pub fn load(path: &Path) -> Result<Vec<SavedAction>, String> {
-    let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut lines = text.lines();
-    if lines.next() != Some(HEADER) {
-        return Err(format!("{} is not a pi-config plan", path.display()));
-    }
-    lines
-        .filter(|l| !l.trim().is_empty())
-        .map(|line| {
-            let f: Vec<&str> = line.split('\t').collect();
-            let [
-                change,
-                target,
-                source,
-                source_digest,
-                observed,
-                executable,
-                templated,
-            ] = f[..]
-            else {
-                return Err(format!("malformed plan line: {line}"));
-            };
-            Ok(SavedAction {
-                change: if change == "create" {
-                    Change::Create
-                } else {
-                    Change::Update
-                },
-                target: PathBuf::from(target),
-                source: PathBuf::from(source),
-                source_digest: source_digest.parse().map_err(|_| "bad digest".to_owned())?,
-                observed: (observed != "absent")
-                    .then(|| observed.parse().map_err(|_| "bad digest".to_owned()))
-                    .transpose()?,
-                executable: executable == "true",
-                templated: templated == "true",
-            })
-        })
-        .collect()
-}
-
-/// Apply a saved plan, refusing if either side moved since it was made.
-///
-/// This is the whole reason to persist a plan: without these checks an apply
-/// is just a re-plan wearing a reviewed plan's name.
-pub fn apply_saved(actions: &[SavedAction], home: &str) -> Result<usize, String> {
-    // Verify everything first, keeping the bytes that were checked. Reading a
-    // second time in the write loop would mean writing content whose digest was
-    // never verified -- which is the guarantee a saved plan exists to give.
-    let mut verified: Vec<(&SavedAction, String)> = Vec::with_capacity(actions.len());
-    for a in actions {
-        let stored = fs::read_to_string(&a.source)
-            .map_err(|e| format!("plan source {} is gone: {e}", a.source.display()))?;
-        if digest(&stored) != a.source_digest {
-            return Err(format!(
-                "stale plan: {} changed in the repository since planning",
-                a.source.display()
-            ));
-        }
-        let now = fs::read_to_string(&a.target).ok().map(|c| digest(&c));
-        if now != a.observed {
-            return Err(format!(
-                "stale plan: {} changed on this machine since planning",
-                a.target.display()
-            ));
-        }
-        let content = if a.templated {
-            from_template(&stored, home)
-        } else {
-            stored
-        };
-        verified.push((a, content));
-    }
-
-    for (a, content) in &verified {
-        if let Some(parent) = a.target.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        fs::write(&a.target, content).map_err(|e| e.to_string())?;
-        set_executable(&a.target, a.executable).map_err(|e| e.to_string())?;
-    }
-    Ok(verified.len())
 }
