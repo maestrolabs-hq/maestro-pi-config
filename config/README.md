@@ -51,6 +51,24 @@ release asset name silently installs the wrong thing: `gh` and
 
 The last step is always re-authenticating. Credentials are not here.
 
+### The gauntlet-loop skill is an adaptation
+
+Upstream is written for Claude Code and uses two primitives pi does not have:
+the `/loop` slash command and `ultracode`. The captured copy replaces both, so
+it is not the same file the package ships.
+
+The two do not collide. `pi install` clones the package to the agent's `git/`
+directory, and pi does not read skills from a package's `.claude/skills` path;
+the copy pi actually loads is the one restored into the agent's `skills/`
+directory. Provisioning runs before restoring, so ours is written last either
+way.
+
+The risk is not collision but erosion: re-capturing from a pristine clone would
+silently reinstate instructions pi cannot follow, and the symptom would be a
+model quietly ignoring a line rather than an error. `tests/skills.rs` fails if
+`ultracode` or `/loop` appear outside the note explaining they were replaced,
+or if any of the three prompt templates loses its replacement line.
+
 ## What is deliberately absent
 
 Credentials never leave the machine they were issued on. `auth.json` and the
