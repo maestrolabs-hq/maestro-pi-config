@@ -34,8 +34,16 @@ just bootstrap --auto-approve  # installs, then converges configuration
 
 Configuration follows `terraform plan` / `terraform apply`. A plan reports only
 what would actually change, so a machine already in step reads `No changes`
-rather than a list of files it would rewrite identically. An apply prints the
-same plan and refuses to act without `--auto-approve`.
+rather than a list of files it would rewrite identically.
+
+`just plan` saves to `plan.out`, and `just apply` carries out that file. The
+saved plan records the digest each source had in the repository and each target
+had on the machine; applying re-reads both and refuses if either moved. So an
+apply cannot quietly do something other than what was reviewed, and it checks
+every action before writing any -- a stale plan leaves the machine untouched.
+
+`just apply-now --auto-approve` re-plans and acts in one step, for when a saved
+plan is more ceremony than the change deserves.
 
 `config/provision.txt` is the manifest: pinned versions, one step per line.
 Moving a version there is a deliberate edit.

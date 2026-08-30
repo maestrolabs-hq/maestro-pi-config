@@ -124,3 +124,90 @@ fn applied_files_match_the_captured_bytes_exactly() {
         "an apply must reproduce the captured bytes exactly"
     );
 }
+
+#[test]
+fn a_saved_plan_is_applied_without_a_second_approval() {
+    let home = scratch("saved");
+    let file = home.join("plan.out");
+    let f = file.display().to_string();
+
+    let (out, ok) = run(&home, &["plan", "--out", &f]);
+    assert!(ok, "{out}");
+    assert!(file.exists(), "the plan should have been written");
+
+    // No --auto-approve: reviewing produced the file, that is the approval.
+    let (out, ok) = run(&home, &["apply", &f]);
+    assert!(ok, "a saved plan should apply:\n{out}");
+    assert!(
+        home.join(".pi/agent/settings.json").exists(),
+        "it should have written"
+    );
+}
+
+#[test]
+fn a_plan_is_refused_once_the_machine_moves_under_it() {
+    let home = scratch("stale-machine");
+    let file = home.join("plan.out");
+    let f = file.display().to_string();
+    run(&home, &["plan", "--out", &f]);
+
+    let target = home.join(".pi/agent/settings.json");
+    fs::create_dir_all(target.parent().expect("parent")).expect("mkdir");
+    fs::write(&target, "someone else wrote this").expect("tamper");
+
+    let out = Command::new(env!("CARGO_BIN_EXE_pi-config"))
+        .args(["apply", &f])
+        .env("HOME", &home)
+        .env("USERPROFILE", &home)
+        .output()
+        .expect("run");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "a stale plan must not apply");
+    assert!(err.contains("stale plan"), "it should say why:\n{err}");
+    assert_eq!(
+        fs::read_to_string(&target).expect("read"),
+        "someone else wrote this",
+        "nothing may be written when any action is stale"
+    );
+}
+
+#[test]
+fn a_plan_is_refused_once_the_repository_moves_under_it() {
+    let home = scratch("stale-repo");
+    let file = home.join("plan.out");
+    let f = file.display().to_string();
+    run(&home, &["plan", "--out", &f]);
+
+    // Rewrite the plan to name a source that no longer matches its digest.
+    let text = fs::read_to_string(&file).expect("read plan");
+    let doctored: String = text
+        .lines()
+        .map(|l| {
+            let mut f: Vec<&str> = l.split('\t').collect();
+            if f.len() == 6 {
+                f[3] = "1";
+                f.join("\t")
+            } else {
+                l.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&file, doctored).expect("write plan");
+
+    let out = Command::new(env!("CARGO_BIN_EXE_pi-config"))
+        .args(["apply", &f])
+        .env("HOME", &home)
+        .env("USERPROFILE", &home)
+        .output()
+        .expect("run");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !out.status.success(),
+        "a plan whose source moved must not apply"
+    );
+    assert!(
+        err.contains("changed in the repository"),
+        "it should say why:\n{err}"
+    );
+}

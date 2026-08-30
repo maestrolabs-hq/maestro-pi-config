@@ -38,15 +38,18 @@ fmt:
     cargo fmt --all
     npx biome format --write .
 
-# What a restore would change on this machine. Reads only.
+# What a restore would change on this machine. Reads only, and saves the plan
+# so an apply carries out exactly what was reviewed.
 plan:
-    cargo run --quiet -- plan
+    cargo run --quiet -- plan --out plan.out
 
-# Carry out the plan. Prints it again, and refuses to act without approval.
-#
-#   just apply                 shows the plan, changes nothing
-#   just apply --auto-approve  carries it out
-apply *FLAGS:
+# Carry out the saved plan. Refuses if the repository or the machine moved
+# since it was written, so an apply can never do something unreviewed.
+apply:
+    cargo run --quiet -- apply plan.out
+
+# Re-plan and act in one step, without a saved plan to check against.
+apply-now *FLAGS:
     cargo run --quiet -- apply {{FLAGS}}
 
 # What has to be installed before configuration means anything.

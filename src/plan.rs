@@ -1,13 +1,11 @@
 //! What a restore would change, decided before anything is written.
 //!
 //! Modelled on `terraform plan` / `terraform apply`: a plan reports only real
-//! changes, and an apply prints the same plan before acting.
+//! changes, and a saved plan is carried out exactly as reviewed.
 //!
-//! Terraform can save a plan so an apply carries out exactly what was
-//! reviewed. That is not done here: an apply re-plans and prints it, and the
-//! only gap it leaves is the seconds between reading the output and confirming.
-//! A plan file would add a format, a staleness rule and an artifact to ignore,
-//! to close a window that a local config restore does not really have.
+//! A saved plan records what each target held when the plan was made. Applying
+//! it re-reads both the repository and the machine and refuses if either moved,
+//! so an apply can never quietly do something other than what was approved.
 
 use std::fs;
 use std::io;
@@ -38,11 +36,29 @@ pub struct Action {
     pub target: PathBuf,
     pub content: String,
     pub executable: bool,
+    /// What the target held when this was planned. `None` means it did not
+    /// exist. Applying checks this before writing.
+    pub observed: Option<u64>,
+}
+
+/// FNV-1a. Not for security -- only to notice that bytes moved. Written out
+/// rather than taken from `DefaultHasher`, whose output Rust does not promise
+/// to keep stable, and a plan file has to outlive the process that wrote it.
+pub fn digest(bytes: &str) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in bytes.as_bytes() {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x1000_0000_01b3);
+    }
+    h
 }
 
 #[derive(Debug, Default)]
 pub struct Plan {
     pub actions: Vec<Action>,
+    /// Where each action's content came from, positionally aligned with
+    /// `actions`. Only needed when the plan is saved.
+    pub sources: Vec<(PathBuf, u64)>,
     /// Targets already matching the repository. Counted, never listed: a plan
     /// that prints what it will not do buries what it will.
     pub unchanged: usize,
@@ -88,22 +104,26 @@ fn files_under(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-fn consider(plan: &mut Plan, target: PathBuf, wanted: String, executable: bool) {
-    match fs::read_to_string(&target) {
-        Ok(current) if current == wanted => plan.unchanged += 1,
-        Ok(_) => plan.actions.push(Action {
-            change: Change::Update,
-            target,
-            content: wanted,
-            executable,
-        }),
-        Err(_) => plan.actions.push(Action {
-            change: Change::Create,
-            target,
-            content: wanted,
-            executable,
-        }),
-    }
+fn consider(plan: &mut Plan, target: PathBuf, wanted: String, executable: bool, source: PathBuf) {
+    let (change, observed) = match fs::read_to_string(&target) {
+        Ok(current) if current == wanted => {
+            plan.unchanged += 1;
+            return;
+        }
+        Ok(current) => (Change::Update, Some(digest(&current))),
+        Err(_) => (Change::Create, None),
+    };
+    plan.sources.push((
+        source.clone(),
+        digest(&fs::read_to_string(&source).unwrap_or_default()),
+    ));
+    plan.actions.push(Action {
+        change,
+        target,
+        content: wanted,
+        executable,
+        observed,
+    });
 }
 
 /// Decide what a restore would change. Reads only.
@@ -129,6 +149,7 @@ pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
                         entry.live.clone(),
                         expand(stored),
                         entry.executable,
+                        repo_path.clone(),
                     );
                 }
             }
@@ -140,6 +161,7 @@ pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
                             entry.live.join(&rel),
                             expand(stored),
                             entry.executable,
+                            repo_path.join(&rel),
                         );
                     }
                 }
@@ -173,4 +195,120 @@ fn set_executable(path: &Path, executable: bool) -> io::Result<()> {
 #[cfg(not(unix))]
 fn set_executable(_path: &Path, _executable: bool) -> io::Result<()> {
     Ok(())
+}
+
+// ---------------------------------------------------------------- persistence
+
+const HEADER: &str = "pi-config plan v1";
+
+/// A saved plan. One action per line, tab-separated, so it can be read without
+/// a parser dependency and eyeballed without a tool.
+///
+/// Content is not stored: the plan names its source in the repository and the
+/// digest that source had. Applying re-reads it and checks. That keeps the file
+/// small and makes a repository edit after planning a refusal rather than a
+/// surprise.
+pub fn save(plan: &Plan, sources: &[(PathBuf, u64)], path: &Path) -> io::Result<()> {
+    let mut out = String::from(HEADER);
+    out.push('\n');
+    for (action, (source, source_digest)) in plan.actions.iter().zip(sources) {
+        out.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{}\t{}\n",
+            match action.change {
+                Change::Create => "create",
+                Change::Update => "update",
+            },
+            action.target.display(),
+            source.display(),
+            source_digest,
+            action
+                .observed
+                .map_or_else(|| "absent".to_owned(), |d| d.to_string()),
+            action.executable,
+        ));
+    }
+    fs::write(path, out)
+}
+
+#[derive(Debug)]
+pub struct SavedAction {
+    pub change: Change,
+    pub target: PathBuf,
+    pub source: PathBuf,
+    pub source_digest: u64,
+    pub observed: Option<u64>,
+    pub executable: bool,
+}
+
+pub fn load(path: &Path) -> Result<Vec<SavedAction>, String> {
+    let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut lines = text.lines();
+    if lines.next() != Some(HEADER) {
+        return Err(format!("{} is not a pi-config plan", path.display()));
+    }
+    lines
+        .filter(|l| !l.trim().is_empty())
+        .map(|line| {
+            let f: Vec<&str> = line.split('\t').collect();
+            let [change, target, source, source_digest, observed, executable] = f[..] else {
+                return Err(format!("malformed plan line: {line}"));
+            };
+            Ok(SavedAction {
+                change: if change == "create" {
+                    Change::Create
+                } else {
+                    Change::Update
+                },
+                target: PathBuf::from(target),
+                source: PathBuf::from(source),
+                source_digest: source_digest.parse().map_err(|_| "bad digest".to_owned())?,
+                observed: (observed != "absent")
+                    .then(|| observed.parse().map_err(|_| "bad digest".to_owned()))
+                    .transpose()?,
+                executable: executable == "true",
+            })
+        })
+        .collect()
+}
+
+/// Apply a saved plan, refusing if either side moved since it was made.
+///
+/// This is the whole reason to persist a plan: without these checks an apply
+/// is just a re-plan wearing a reviewed plan's name.
+pub fn apply_saved(
+    actions: &[SavedAction],
+    home: &str,
+    templated: &dyn Fn(&Path) -> bool,
+) -> Result<usize, String> {
+    for a in actions {
+        let stored = fs::read_to_string(&a.source)
+            .map_err(|e| format!("plan source {} is gone: {e}", a.source.display()))?;
+        if digest(&stored) != a.source_digest {
+            return Err(format!(
+                "stale plan: {} changed in the repository since planning",
+                a.source.display()
+            ));
+        }
+        let now = fs::read_to_string(&a.target).ok().map(|c| digest(&c));
+        if now != a.observed {
+            return Err(format!(
+                "stale plan: {} changed on this machine since planning",
+                a.target.display()
+            ));
+        }
+    }
+    for a in actions {
+        let stored = fs::read_to_string(&a.source).map_err(|e| e.to_string())?;
+        let content = if templated(&a.source) {
+            from_template(&stored, home)
+        } else {
+            stored
+        };
+        if let Some(parent) = a.target.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::write(&a.target, content).map_err(|e| e.to_string())?;
+        set_executable(&a.target, a.executable).map_err(|e| e.to_string())?;
+    }
+    Ok(actions.len())
 }

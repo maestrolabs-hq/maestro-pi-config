@@ -43,7 +43,9 @@ fn render(p: &plan::Plan) {
 }
 
 fn usage() -> ExitCode {
-    eprintln!("usage: pi-config <status|sync|plan|apply [--auto-approve]|provision [--apply]>");
+    eprintln!(
+        "usage: pi-config <status|sync|plan [--out FILE]|apply [FILE|--auto-approve]|provision [--apply]>"
+    );
     ExitCode::from(2)
 }
 
@@ -108,14 +110,70 @@ fn main() -> ExitCode {
         "plan" => {
             let p = plan::plan(&entries, &root, &home_str);
             render(&p);
-            if p.is_empty() {
-                ExitCode::SUCCESS
-            } else {
-                println!("\nRun `just apply` to carry this out.");
-                ExitCode::SUCCESS
+            if let Some(i) = args.iter().position(|a| a == "--out") {
+                let Some(out) = args.get(i + 1) else {
+                    eprintln!("pi-config: --out needs a path");
+                    return ExitCode::FAILURE;
+                };
+                if let Err(e) = plan::save(&p, &p.sources, std::path::Path::new(out)) {
+                    eprintln!("pi-config: cannot write the plan: {e}");
+                    return ExitCode::FAILURE;
+                }
+                if p.is_empty() {
+                    println!(
+                        "
+Saved an empty plan to {out}."
+                    );
+                } else {
+                    println!(
+                        "
+Saved to {out}. Carry it out with: pi-config apply {out}"
+                    );
+                }
+            } else if !p.is_empty() {
+                println!(
+                    "
+Run `just apply` to carry this out."
+                );
             }
+            ExitCode::SUCCESS
         }
         "apply" => {
+            // A path argument means a saved plan: it was reviewed when it was
+            // written, so it needs no second approval -- only proof that
+            // nothing moved since.
+            if let Some(file) = args.iter().skip(1).find(|a| !a.starts_with("--")) {
+                let path = std::path::Path::new(file);
+                let saved = match plan::load(path) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("pi-config: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                };
+                let templated_sources: Vec<std::path::PathBuf> = entries
+                    .iter()
+                    .filter(|e| e.templated)
+                    .map(|e| root.join(e.repo))
+                    .collect();
+                let is_templated = |p: &std::path::Path| templated_sources.iter().any(|t| t == p);
+                println!("Carrying out the saved plan:\n");
+                for a in &saved {
+                    println!("  {} {}", a.change.symbol(), a.target.display());
+                }
+                println!();
+                return match plan::apply_saved(&saved, &home_str, &is_templated) {
+                    Ok(n) => {
+                        println!("Apply complete. {n} file(s) written from {file}.");
+                        ExitCode::SUCCESS
+                    }
+                    Err(e) => {
+                        eprintln!("pi-config: {e}");
+                        eprintln!("Re-plan and review again.");
+                        ExitCode::FAILURE
+                    }
+                };
+            }
             let p = plan::plan(&entries, &root, &home_str);
             render(&p);
             if p.is_empty() {
@@ -123,7 +181,8 @@ fn main() -> ExitCode {
             }
             if !args.iter().any(|a| a == "--auto-approve") {
                 println!(
-                    "\nRefusing to change {} file(s) unprompted.",
+                    "
+Refusing to change {} file(s) unprompted.",
                     p.actions.len()
                 );
                 println!("Review the plan above, then: just apply --auto-approve");
@@ -132,7 +191,8 @@ fn main() -> ExitCode {
             match plan::apply(&p) {
                 Ok(()) => {
                     println!(
-                        "\nApply complete. {} added, {} changed.",
+                        "
+Apply complete. {} added, {} changed.",
                         p.creates(),
                         p.updates()
                     );
