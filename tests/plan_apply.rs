@@ -4,7 +4,7 @@
 //! away from the real machine and proves the tool is environment-driven.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn scratch(name: &str) -> PathBuf {
@@ -14,7 +14,7 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
-fn run(home: &PathBuf, args: &[&str]) -> (String, bool) {
+fn run(home: &Path, args: &[&str]) -> (String, bool) {
     let out = Command::new(env!("CARGO_BIN_EXE_pi-config"))
         .args(args)
         .env("HOME", home)
@@ -173,38 +173,35 @@ fn a_plan_is_refused_once_the_machine_moves_under_it() {
 
 #[test]
 fn a_plan_is_refused_once_the_repository_moves_under_it() {
+    // Point the tool at a scratch copy of the repository so a source can be
+    // edited for real. Asserting against a digest the test computes itself
+    // would pass even with the implementation's hash stubbed to a constant --
+    // which is exactly what the earlier version of this test did.
     let home = scratch("stale-repo");
-    let file = home.join("plan.out");
-    let f = file.display().to_string();
-    run(&home, &["plan", "--out", &f]);
+    let repo = home.join("repo");
+    copy_repo_into(&repo);
 
-    // Rewrite the plan to name a source that no longer matches its digest.
-    let text = fs::read_to_string(&file).expect("read plan");
-    let doctored: String = text
-        .lines()
-        .map(|l| {
-            let mut f: Vec<&str> = l.split('\t').collect();
-            if f.len() == 7 {
-                f[3] = "1";
-                f.join("\t")
-            } else {
-                l.to_owned()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    fs::write(&file, doctored).expect("write plan");
+    let plan = home.join("plan.out");
+    let f = plan.display().to_string();
+    let (_, ok) = run_in(&home, &repo, &["plan", "--out", &f]);
+    assert!(ok, "planning against the copy should work");
+
+    // Edit a source the plan actually names. A constant hash cannot tell this
+    // from the original, so the refusal below only happens if the digest is real.
+    let source = repo.join("config/pi/settings.json");
+    fs::write(&source, "{\"edited\": \"after planning\"}").expect("edit source");
 
     let out = Command::new(env!("CARGO_BIN_EXE_pi-config"))
         .args(["apply", &f])
         .env("HOME", &home)
         .env("USERPROFILE", &home)
+        .env("PI_CONFIG_REPO", &repo)
         .output()
         .expect("run");
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(
         !out.status.success(),
-        "a plan whose source moved must not apply"
+        "a source edited after planning must not apply"
     );
     assert!(
         err.contains("changed in the repository"),
@@ -212,11 +209,39 @@ fn a_plan_is_refused_once_the_repository_moves_under_it() {
     );
 }
 
-/// The bug this guards: a saved plan reconstructed `templated` by comparing the
-/// action's source against the manifest's *directory* path. For a directory
-/// entry the source is a file inside it, so equality never held, `${HOME}` was
-/// written literally, and the machine never converged. The two apply paths
-/// produced different bytes for the same reviewed plan.
+fn copy_repo_into(dest: &Path) {
+    fn copy(from: &Path, to: &Path) {
+        fs::create_dir_all(to).expect("mkdir");
+        for e in fs::read_dir(from).expect("read_dir").flatten() {
+            let (s, d) = (e.path(), to.join(e.file_name()));
+            if s.is_dir() {
+                copy(&s, &d);
+            } else {
+                fs::copy(&s, &d).expect("copy");
+            }
+        }
+    }
+    let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config");
+    copy(&src, &dest.join("config"));
+}
+
+fn run_in(home: &Path, repo: &Path, args: &[&str]) -> (String, bool) {
+    let out = Command::new(env!("CARGO_BIN_EXE_pi-config"))
+        .args(args)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("PI_CONFIG_REPO", repo)
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("PI_AGENT_DIR")
+        .env_remove("PI_CONFIG_BIN_DIR")
+        .output()
+        .expect("run pi-config");
+    (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        out.status.success(),
+    )
+}
+
 #[test]
 fn a_saved_plan_expands_home_in_directory_entries_too() {
     let home = scratch("saved-template-dir");
@@ -254,5 +279,29 @@ fn a_saved_plan_converges() {
     assert!(
         out.contains("No changes"),
         "after applying a saved plan nothing should remain:\n{out}"
+    );
+}
+
+/// A script that lost its executable bit has identical content. Nothing else
+/// would ever repair it: apply only visits actions, and actions only existed
+/// when content differed.
+#[cfg(unix)]
+#[test]
+fn losing_the_executable_bit_is_drift() {
+    use std::os::unix::fs::PermissionsExt;
+    let home = scratch("mode-drift");
+    run(&home, &["apply", "--auto-approve"]);
+
+    let script = home.join(".local/bin/start-tts");
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o644)).expect("strip +x");
+
+    let (out, _) = run(&home, &["plan"]);
+    assert!(out.contains("1 to change"), "a lost mode is drift:\n{out}");
+
+    run(&home, &["apply", "--auto-approve"]);
+    let mode = fs::metadata(&script).expect("stat").permissions().mode();
+    assert!(
+        mode & 0o111 != 0,
+        "apply must restore the executable bit, got {mode:o}"
     );
 }

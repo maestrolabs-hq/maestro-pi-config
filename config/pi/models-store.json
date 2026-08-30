@@ -464,8 +464,8 @@
           "cacheRead": 0,
           "cacheWrite": 0
         },
-        "contextWindow": 65536,
-        "maxTokens": 65536,
+        "contextWindow": 128000,
+        "maxTokens": 128000,
         "compat": {
           "supportsStore": false,
           "supportsDeveloperRole": false,
@@ -503,6 +503,6 @@
         }
       }
     ],
-    "checkedAt": 1788105487305
+    "checkedAt": 1788121797532
   }
 }

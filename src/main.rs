@@ -17,8 +17,14 @@ use manifest::{home, manifest};
 
 /// The repository root: the directory holding this crate's `Cargo.toml`,
 /// resolved at build time so the binary can run from anywhere.
+///
+/// `PI_CONFIG_REPO` overrides it. That exists so a test can point the tool at a
+/// scratch copy and edit a source for real, rather than asserting against a
+/// hand-written digest -- a test that computes the expected hash itself passes
+/// even when the implementation's hash is stubbed to a constant.
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    env::var_os("PI_CONFIG_REPO")
+        .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), PathBuf::from)
 }
 
 /// Only what changes. A plan that lists what it will not do buries what it will.
@@ -72,7 +78,9 @@ fn main() -> ExitCode {
                 for d in &r.detail {
                     println!("          {d}");
                 }
-                if r.state == State::Differs {
+                // Absent counts. A machine holding none of the files is not
+                // "in sync" with a repository that holds all of them.
+                if matches!(r.state, State::Differs | State::AbsentLive) {
                     drifted += 1;
                 }
             }
@@ -81,12 +89,12 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             } else {
                 let plural = if drifted == 1 {
-                    "entry has"
+                    "entry is"
                 } else {
-                    "entries have"
+                    "entries are"
                 };
                 println!(
-                    "\n{drifted} {plural} drifted. `just sync` pulls the machine's version in."
+                    "\n{drifted} {plural} out of step. `just plan` shows what a restore would change."
                 );
                 ExitCode::FAILURE
             }

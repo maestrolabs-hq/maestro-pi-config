@@ -114,7 +114,10 @@ fn consider(
     templated: bool,
 ) {
     let (change, observed) = match fs::read_to_string(&target) {
-        Ok(current) if current == wanted => {
+        // Identical content is not enough: a script that lost its executable
+        // bit has the same bytes and is still broken. Nothing else would ever
+        // repair it, because apply only visits actions.
+        Ok(current) if current == wanted && mode_is_correct(&target, executable) => {
             plan.unchanged += 1;
             return;
         }
@@ -192,6 +195,20 @@ pub fn apply(plan: &Plan) -> io::Result<()> {
         set_executable(&action.target, action.executable)?;
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn mode_is_correct(path: &Path, executable: bool) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    if !executable {
+        return true;
+    }
+    fs::metadata(path).is_ok_and(|m| m.permissions().mode() & 0o111 != 0)
+}
+
+#[cfg(not(unix))]
+fn mode_is_correct(_path: &Path, _executable: bool) -> bool {
+    true
 }
 
 #[cfg(unix)]
