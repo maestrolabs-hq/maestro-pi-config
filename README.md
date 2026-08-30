@@ -23,20 +23,26 @@ extensions/  pi runtime extensions (TypeScript)
 docs/        design notes and runbooks
 ```
 
-## First extension: mempalace hooks
+## First extension: the memory shim
 
-Pi exposes lifecycle events that map cleanly onto mempalace's hook model:
+Pi loads only `.ts` and `.js`, so a shim is the sole way into its process. The
+shim holds no policy: it turns a pi lifecycle event into an envelope, hands it to
+`maestro`, and waits for the acknowledgement. Everything behind that boundary —
+the ledger, delivery, retries, and any knowledge of MemPalace — belongs to
+Maestro. See [ADR-0001](./docs/adr/0001-shims-delegate-to-maestro.md).
 
-| mempalace hook | pi event |
-| --- | --- |
-| `session-start` | `session_start` |
-| `precompact` | `session_before_compact` |
-| `stop` | `agent_end` |
-| `session-end` | `session_shutdown` |
+The four events, and why each:
 
-`mempalace hook run` only accepts `--harness claude-code|codex`, so the extension
-calls mempalace's MCP tools directly rather than impersonating another harness's
-stdin format.
+| Pi event | Direction | Why this one |
+| --- | --- | --- |
+| `session_start` | read | warm recall for this project |
+| `before_agent_start` | read | inject recalled context, once per session |
+| `agent_settled` | write | not `agent_end`: pi may auto-retry or auto-compact after that, so `agent_end` does not mean finished |
+| `session_before_compact` | write | capture while the context is still intact |
+| `session_shutdown` | write | final capture |
+
+The full mapping, the shim's contract and the failure posture are in
+[docs/architecture.md](./docs/architecture.md).
 
 ## Status
 
