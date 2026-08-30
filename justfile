@@ -18,13 +18,27 @@ setup:
     prek install --install-hooks
 
 # Run the quality gates. CI runs these same commands, not equivalents.
-# `tsc --noEmit` and `node --test` are deliberately absent until the first
-# TypeScript lands: tsc exits TS18003 with no inputs, and a gate that fails
-# for want of input catches nothing. Restore both with the first .ts file --
-# the config for them is already here and correct.
 check:
     npx biome format .
     npx biome lint .
+    npx tsc --noEmit
+    node --test
+
+# Is this machine's configuration still what the repository holds?
+status:
+    node tools/cli.ts status
+
+# Machine -> repository. Drift becomes a git diff; review it before committing.
+sync:
+    node tools/cli.ts sync
+
+# Repository -> machine. Prints what it would write and changes nothing.
+restore:
+    node tools/cli.ts restore
+
+# Repository -> machine, for real. Overwrites live configuration.
+restore-apply:
+    node tools/cli.ts restore --apply
 
 # Format in place. `check` only verifies.
 fmt:

@@ -14,8 +14,14 @@ repos:
       - id: check-merge-conflict
       - id: check-json
       - id: check-yaml
+      # config/ holds captured configuration. It must stay byte-identical to
+      # the files it was taken from: a hook that appends a newline makes every
+      # sync report drift that no sync can ever resolve, and makes a restore
+      # write something the machine did not have.
       - id: end-of-file-fixer
+        exclude: ^config/
       - id: trailing-whitespace
+        exclude: ^config/
 
   - repo: https://github.com/gitleaks/gitleaks
     # Same engine locally and in CI, so a commit blocked here is blocked there.
@@ -39,6 +45,18 @@ repos:
       - id: biome-lint
         name: biome lint
         entry: npx biome lint .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: tsc
+        name: tsc (strict, no emit)
+        entry: npx tsc --noEmit
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: node-test
+        name: node --test
+        entry: node --test
         language: system
         pass_filenames: false
         always_run: true

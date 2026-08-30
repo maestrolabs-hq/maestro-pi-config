@@ -11,7 +11,9 @@
     "noFallthroughCasesInSwitch": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
   },
-  "include": ["extensions/**/*.ts", "**/*.test.ts"]
+  "include": ["tools/**/*.ts", "extensions/**/*.ts", "**/*.test.ts"]
 }
