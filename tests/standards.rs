@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 /// content -- closing braces, explicit types, match arms, derive attributes --
 /// so this sits a quarter higher.
 ///
-/// It is a junk-drawer tripwire, not a design rule. The design rules are
+/// It is a dumping-ground tripwire, not a design rule. The design rules are
 /// per-function and live in `Cargo.toml`: `too_many_lines`,
 /// `cognitive_complexity`, `too_many_arguments`. A module of twenty small
 /// clear functions is fine; one of three sprawling ones is not, and this
@@ -38,7 +38,7 @@ fn code_lines(path: &Path) -> usize {
 }
 
 #[test]
-fn no_module_is_a_junk_drawer() {
+fn no_module_becomes_a_dumping_ground() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut files = Vec::new();
     src_files(&root, &mut files);
