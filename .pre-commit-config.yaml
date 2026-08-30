@@ -1,0 +1,44 @@
+# Local hook configuration, run by prek (https://github.com/j178/prek).
+# Enable with: prek install --install-hooks (done by `just setup`).
+#
+# Both hook types are declared here rather than passed as install flags, so the
+# plain install command wires the merge gate too: a merge that commits on its
+# own runs pre-merge-commit, not pre-commit, and would otherwise bring in
+# changes no gate ever saw.
+default_install_hook_types: [pre-commit, pre-merge-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/gitleaks/gitleaks
+    # Same engine locally and in CI, so a commit blocked here is blocked there.
+    # This repository holds pi configuration, which is exactly where a token
+    # gets pasted by accident.
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+        always_run: true
+
+  - repo: local
+    hooks:
+      # always_run: without it the whole-project gates are skipped on commits
+      # whose staged files match no filter, such as pure deletions.
+      - id: biome-format
+        name: biome format (check only)
+        entry: npx biome format .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: biome-lint
+        name: biome lint
+        entry: npx biome lint .
+        language: system
+        pass_filenames: false
+        always_run: true

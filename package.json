@@ -1,0 +1,22 @@
+{
+  "name": "maestro-pi-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Pi configuration, settings and extension shims, restorable on any machine",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "fmt": "biome format --write .",
+    "check:fmt": "biome format .",
+    "check:lint": "biome lint .",
+    "check:types": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -5,3 +5,4 @@ build/
 .DS_Store
 auth.json
 .credentials.json
+node_modules/
