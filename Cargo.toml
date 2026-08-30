@@ -12,3 +12,11 @@ path = "src/main.rs"
 # No application dependencies. The home directory is read from the
 # environment, which is all this needs and keeps the supply chain empty.
 [dependencies]
+
+# Measured, not assumed: the whole pedantic group costs two fixes on this
+# codebase. The lints that make it noisy elsewhere (must_use_candidate,
+# missing_errors_doc) fire on library public APIs, and this is a binary.
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+too_many_lines = "warn"
+cognitive_complexity = "warn"

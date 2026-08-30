@@ -7,6 +7,7 @@
 //! it re-reads both the repository and the machine and refuses if either moved,
 //! so an apply can never quietly do something other than what was approved.
 
+use std::fmt::Write;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -105,14 +106,25 @@ fn files_under(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-fn consider(
-    plan: &mut Plan,
+/// One file a restore might touch. A struct rather than six positional
+/// arguments, two of which are adjacent `PathBuf`s -- transposing the target
+/// and its source would type-check and write the wrong file.
+struct Candidate {
     target: PathBuf,
     wanted: String,
     executable: bool,
     source: PathBuf,
     templated: bool,
-) {
+}
+
+fn consider(plan: &mut Plan, candidate: Candidate) {
+    let Candidate {
+        target,
+        wanted,
+        executable,
+        source,
+        templated,
+    } = candidate;
     let (change, observed) = match fs::read_to_string(&target) {
         // Identical content is not enough: a script that lost its executable
         // bit has the same bytes and is still broken. Nothing else would ever
@@ -124,10 +136,8 @@ fn consider(
         Ok(current) => (Change::Update, Some(digest(&current))),
         Err(_) => (Change::Create, None),
     };
-    plan.sources.push((
-        source.clone(),
-        digest(&fs::read_to_string(&source).unwrap_or_default()),
-    ));
+    let source_digest = digest(&fs::read_to_string(&source).unwrap_or_default());
+    plan.sources.push((source, source_digest));
     plan.actions.push(Action {
         change,
         target,
@@ -158,11 +168,13 @@ pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
                 if let Ok(stored) = fs::read_to_string(&repo_path) {
                     consider(
                         &mut plan,
-                        entry.live.clone(),
-                        expand(stored),
-                        entry.executable,
-                        repo_path.clone(),
-                        entry.templated,
+                        Candidate {
+                            target: entry.live.clone(),
+                            wanted: expand(stored),
+                            executable: entry.executable,
+                            source: repo_path.clone(),
+                            templated: entry.templated,
+                        },
                     );
                 }
             }
@@ -171,11 +183,13 @@ pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
                     if let Ok(stored) = fs::read_to_string(repo_path.join(&rel)) {
                         consider(
                             &mut plan,
-                            entry.live.join(&rel),
-                            expand(stored),
-                            entry.executable,
-                            repo_path.join(&rel),
-                            entry.templated,
+                            Candidate {
+                                target: entry.live.join(&rel),
+                                wanted: expand(stored),
+                                executable: entry.executable,
+                                source: repo_path.join(&rel),
+                                templated: entry.templated,
+                            },
                         );
                     }
                 }
@@ -240,8 +254,9 @@ pub fn save(plan: &Plan, sources: &[(PathBuf, u64)], path: &Path) -> io::Result<
     let mut out = String::from(HEADER);
     out.push('\n');
     for (action, (source, source_digest)) in plan.actions.iter().zip(sources) {
-        out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+        let _ = writeln!(
+            out,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
             match action.change {
                 Change::Create => "create",
                 Change::Update => "update",
@@ -254,7 +269,7 @@ pub fn save(plan: &Plan, sources: &[(PathBuf, u64)], path: &Path) -> io::Result<
                 .map_or_else(|| "absent".to_owned(), |d| d.to_string()),
             action.executable,
             action.templated,
-        ));
+        );
     }
     fs::write(path, out)
 }
