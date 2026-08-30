@@ -11,9 +11,9 @@ if pgrep -f '[q]wen-tts-demo' >/dev/null; then
   exit 1
 fi
 
-export HF_HOME=/home/franc/models/.cache/huggingface
+export HF_HOME=${HOME}/models/.cache/huggingface
 
-exec /home/franc/qwen3-tts-local/.venv/bin/qwen-tts-demo \
+exec ${HOME}/qwen3-tts-local/.venv/bin/qwen-tts-demo \
   --checkpoint Qwen/Qwen3-TTS-12Hz-1.7B-Base \
   --device cuda:0 \
   --dtype bfloat16 \

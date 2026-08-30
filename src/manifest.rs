@@ -111,7 +111,9 @@ pub fn manifest(home: &Path) -> Vec<Entry> {
             home.join(".codegraphcontext").join(".env"),
         )
         .templated(),
-        Entry::dir("config/bin", user_bin_dir(home)).executable(),
+        Entry::dir("config/bin", user_bin_dir(home))
+            .executable()
+            .templated(),
     ]
 }
 

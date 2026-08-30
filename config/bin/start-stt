@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-asr=/home/franc/models/audio/stt/qwen/qwen3-asr-1.7b
-aligner=/home/franc/models/audio/stt/qwen/qwen3-forced-aligner-0.6b
+asr=${HOME}/models/audio/stt/qwen/qwen3-asr-1.7b
+aligner=${HOME}/models/audio/stt/qwen/qwen3-forced-aligner-0.6b
 
 if [[ ! -s "$asr/model.safetensors.index.json" ]]; then
   printf 'Qwen ASR model is incomplete: %s\n' "$asr" >&2
@@ -24,9 +24,9 @@ if pgrep -f '[q]wen-asr-demo' >/dev/null; then
   exit 1
 fi
 
-export HF_HOME=/home/franc/models/.cache/huggingface
+export HF_HOME=${HOME}/models/.cache/huggingface
 
-exec /home/franc/src/qwen3-asr/.venv/bin/qwen-asr-demo \
+exec ${HOME}/src/qwen3-asr/.venv/bin/qwen-asr-demo \
   --asr-checkpoint "$asr" \
   --aligner-checkpoint "$aligner" \
   --backend transformers \

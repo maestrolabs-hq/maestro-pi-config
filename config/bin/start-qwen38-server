@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-model=/home/franc/models/llm/qwen/qwen3.8-27b/Qwen3.8-27B-UD-Q6_K.gguf
-draft=/home/franc/models/llm/qwen/qwen3.8-27b/MTP/mtp-Qwen3.8-27B-Q4_0.gguf
-mmproj=/home/franc/models/llm/qwen/qwen3.8-27b/mmproj-F16.gguf
+model=${HOME}/models/llm/qwen/qwen3.8-27b/Qwen3.8-27B-UD-Q6_K.gguf
+draft=${HOME}/models/llm/qwen/qwen3.8-27b/MTP/mtp-Qwen3.8-27B-Q4_0.gguf
+mmproj=${HOME}/models/llm/qwen/qwen3.8-27b/mmproj-F16.gguf
 
 for required_file in "$model" "$draft" "$mmproj"; do
   if [[ ! -s "$required_file" ]]; then
@@ -17,9 +17,9 @@ if pgrep -x llama-server >/dev/null; then
   exit 1
 fi
 
-export LLAMA_CACHE=/home/franc/models/.cache/llama.cpp
+export LLAMA_CACHE=${HOME}/models/.cache/llama.cpp
 
-exec /home/franc/.local/bin/llama-server \
+exec ${HOME}/.local/bin/llama-server \
   --model "$model" \
   --model-draft "$draft" \
   --mmproj "$mmproj" \

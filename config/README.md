@@ -100,11 +100,26 @@ machine-specific.
 Nothing here contains an absolute path, per maestro-core ADR-0001.
 
 Two places needed work to make that true. `mcp.json` referenced
-`/home/franc/.local/bin/gh` and three other absolute binaries; those are now
+`<home>/.local/bin/gh` and three other absolute binaries; those are now
 resolved from `PATH`. Graphify's graph file could not be templated because the
 adapter does not interpolate `args`, so its entry uses `cwd: ~/.graphify` — which
 *is* expanded — with a relative filename.
 
-The exception is `bin/`: those scripts point at model files by absolute path.
-They are captured as they are, and a restore on a machine that stores models
-elsewhere must edit them.
+`bin/` is templated like the tool configs: the scripts store `${HOME}` and a
+restore expands it, so the same script works for any user on any machine.
+
+### Local models are not restored
+
+The scripts under `bin/` start llama.cpp against specific GGUF files. Those
+weights are roughly 207 GB and are not in this repository -- nothing here
+fetches them either.
+
+A restored machine therefore has working scripts pointing at files it does not
+have. Starting the router will fail, and pi will fail to reach a `llama.cpp`
+provider, until the weights are present under `${HOME}/models/` at the paths the
+scripts name. `config/pi/models-store.json` restores the *catalogue* of nine
+local models; the catalogue is not the weights.
+
+Two paths out: fetch the weights to the same layout, or edit the scripts and the
+catalogue to point at what that machine actually has. Either is deliberate work,
+not something a restore can do for you.

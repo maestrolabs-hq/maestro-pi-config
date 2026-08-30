@@ -6,10 +6,10 @@ if pgrep -x llama-server >/dev/null; then
   exit 1
 fi
 
-export LLAMA_CACHE=/home/franc/models/.cache/llama.cpp
+export LLAMA_CACHE=${HOME}/models/.cache/llama.cpp
 
-exec /home/franc/.local/bin/llama-server \
-  -m /home/franc/models/llm/qwen/qwen3.6-27b/Qwen3.6-27B-Q6_K.gguf \
+exec ${HOME}/.local/bin/llama-server \
+  -m ${HOME}/models/llm/qwen/qwen3.6-27b/Qwen3.6-27B-Q6_K.gguf \
   -c 131072 \
   -ctk q8_0 \
   -ctv q8_0 \
