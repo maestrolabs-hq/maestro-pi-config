@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege by default; a job widens this only if it must.
+permissions:
+  contents: read
+
+# One live run per ref: superseded pushes to the same branch are cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Every gate `just check` runs, run identically here. Local hooks are
+  # bypassable with --no-verify and absent entirely on a fresh clone; this is
+  # the copy that cannot be skipped.
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # rust-toolchain.toml pins the version; rustup honours it on first use.
+      - run: rustup show active-toolchain
+      - uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
+        with:
+          tool: cargo-deny,cargo-machete,similarity-rs
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo test --all-targets
+      - run: cargo machete
+      - run: cargo deny check
+      - run: cargo test --test duplication
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npx biome format .
+      - run: npx biome lint .
+
+  # Advisories on anything a pull request would add to the tree.
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+          comment-summary-in-pr: never
+
+  # Full history, not the diff: a secret committed and later removed is still
+  # published. gitleaks is invoked directly rather than through its action,
+  # whose range computation fails on an initial push.
+  secrets-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
+        with:
+          tool: gitleaks@8.30.1
+      - run: gitleaks git --no-banner --redact --verbose .
+
+  # The workflows are code with write access to the repository, so they get
+  # audited too: unpinned actions, excessive permissions, injectable expressions.
+  actions-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
+        with:
+          tool: zizmor@1.30.0
+      - run: zizmor --persona=regular .github/workflows
