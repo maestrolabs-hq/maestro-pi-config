@@ -66,26 +66,54 @@ pub fn home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// Pi keeps its agent directory under the user's home. An explicit override
-/// wins, so a machine with a relocated agent directory can still sync.
-pub fn pi_agent_dir(home: &Path) -> PathBuf {
-    env::var_os("PI_AGENT_DIR").map_or_else(|| home.join(".pi").join("agent"), PathBuf::from)
+/// Where this machine keeps the things we capture.
+///
+/// Resolved once, from the environment, at the edge of the program. Everything
+/// below takes it as data, so no function deeper in has to reach for a variable
+/// -- which is what made the old helpers untestable: they could only be
+/// exercised by mutating the process environment, which is racy across
+/// parallel tests and unsafe from Rust 2024. Two of them silently passed here
+/// and failed in CI, where `XDG_CONFIG_HOME` happens to be set.
+#[derive(Debug, Clone)]
+pub struct Layout {
+    pub home: PathBuf,
+    pub pi_agent: PathBuf,
+    pub mcp_config: PathBuf,
+    pub user_bin: PathBuf,
 }
 
-/// The tool-agnostic MCP config directory, following the adapter's order.
-pub fn mcp_config_dir(home: &Path) -> PathBuf {
-    env::var_os("XDG_CONFIG_HOME")
-        .map_or_else(|| home.join(".config"), PathBuf::from)
-        .join("mcp")
+impl Layout {
+    /// The default arrangement: everything under one home directory.
+    pub fn under(home: &Path) -> Self {
+        Self {
+            home: home.to_path_buf(),
+            pi_agent: home.join(".pi").join("agent"),
+            mcp_config: home.join(".config").join("mcp"),
+            user_bin: home.join(".local").join("bin"),
+        }
+    }
+
+    /// The arrangement this machine actually has: the default, with any
+    /// explicit override applied, so a relocated directory can still be
+    /// captured and restored.
+    pub fn from_env(home: &Path) -> Self {
+        let mut layout = Self::under(home);
+        if let Some(dir) = env::var_os("PI_AGENT_DIR") {
+            layout.pi_agent = PathBuf::from(dir);
+        }
+        if let Some(dir) = env::var_os("XDG_CONFIG_HOME") {
+            layout.mcp_config = PathBuf::from(dir).join("mcp");
+        }
+        if let Some(dir) = env::var_os("PI_CONFIG_BIN_DIR") {
+            layout.user_bin = PathBuf::from(dir);
+        }
+        layout
+    }
 }
 
-/// A directory on `PATH` that the user owns.
-pub fn user_bin_dir(home: &Path) -> PathBuf {
-    env::var_os("PI_CONFIG_BIN_DIR").map_or_else(|| home.join(".local").join("bin"), PathBuf::from)
-}
-
-pub fn manifest(home: &Path) -> Vec<Entry> {
-    let pi = pi_agent_dir(home);
+pub fn manifest(layout: &Layout) -> Vec<Entry> {
+    let pi = &layout.pi_agent;
+    let home = &layout.home;
     vec![
         Entry::file("config/pi/settings.json", pi.join("settings.json")),
         Entry::file(
@@ -94,7 +122,7 @@ pub fn manifest(home: &Path) -> Vec<Entry> {
         ),
         Entry::file("config/pi/models-store.json", pi.join("models-store.json")),
         Entry::dir("config/pi/skills", pi.join("skills")),
-        Entry::file("config/mcp/mcp.json", mcp_config_dir(home).join("mcp.json")),
+        Entry::file("config/mcp/mcp.json", layout.mcp_config.join("mcp.json")),
         Entry::file(
             "config/tools/mempalace/config.template.json",
             home.join(".mempalace").join("config.json"),
@@ -109,7 +137,7 @@ pub fn manifest(home: &Path) -> Vec<Entry> {
             home.join(".codegraphcontext").join(".env"),
         )
         .templated(),
-        Entry::dir("config/bin", user_bin_dir(home))
+        Entry::dir("config/bin", layout.user_bin.clone())
             .executable()
             .templated(),
     ]
@@ -129,12 +157,28 @@ pub fn from_template(text: &str, home: &str) -> String {
 mod tests {
     use super::*;
 
+    /// A Layout built as data, with no environment involved, so the test
+    /// cannot pass or fail depending on the machine it runs on. The old
+    /// version read `XDG_CONFIG_HOME` from the process and passed only because
+    /// it happened to be unset here; CI, where it is set, failed.
     #[test]
-    fn paths_are_derived_from_the_environment() {
-        let home = Path::new("/somewhere");
-        assert_eq!(pi_agent_dir(home), Path::new("/somewhere/.pi/agent"));
-        assert_eq!(mcp_config_dir(home), Path::new("/somewhere/.config/mcp"));
-        assert_eq!(user_bin_dir(home), Path::new("/somewhere/.local/bin"));
+    fn a_layout_places_every_directory_under_its_home() {
+        let l = Layout::under(Path::new("/somewhere"));
+        assert_eq!(l.pi_agent, Path::new("/somewhere/.pi/agent"));
+        assert_eq!(l.mcp_config, Path::new("/somewhere/.config/mcp"));
+        assert_eq!(l.user_bin, Path::new("/somewhere/.local/bin"));
+    }
+
+    /// Each directory can be relocated on its own, and doing so must not move
+    /// the others.
+    #[test]
+    fn an_override_moves_one_directory_and_leaves_the_rest() {
+        let l = Layout {
+            mcp_config: PathBuf::from("/elsewhere/mcp"),
+            ..Layout::under(Path::new("/somewhere"))
+        };
+        assert_eq!(l.mcp_config, Path::new("/elsewhere/mcp"));
+        assert_eq!(l.pi_agent, Path::new("/somewhere/.pi/agent"));
     }
 
     #[test]
@@ -148,7 +192,7 @@ mod tests {
     #[test]
     fn every_entry_is_anchored_under_the_given_home() {
         let home = Path::new("/anchor");
-        for entry in manifest(home) {
+        for entry in manifest(&Layout::under(home)) {
             assert!(
                 entry.live.starts_with(home),
                 "{} escaped the home directory: {}",

@@ -13,7 +13,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use manifest::{home, manifest};
+use manifest::{Layout, home, manifest};
 
 /// The repository root: the directory holding this crate's `Cargo.toml`,
 /// resolved at build time so the binary can run from anywhere.
@@ -41,7 +41,7 @@ fn main() -> ExitCode {
     };
     let home_str = home_dir.display().to_string();
     let root = repo_root();
-    let entries = manifest(&home_dir);
+    let entries = manifest(&Layout::from_env(&home_dir));
 
     let args: Vec<String> = env::args().skip(1).collect();
     let Some(verb) = args.first() else {
