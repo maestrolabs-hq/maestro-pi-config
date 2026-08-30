@@ -26,9 +26,11 @@ declares packages; `mcp.json` names binaries. Neither is any use on a machine
 that has none of them, so provisioning comes first.
 
 ```text
-just bootstrap        # prints both plans, changes nothing
-just bootstrap-apply  # installs, then writes
+just bootstrap            # prints the plan, changes nothing
+just bootstrap --apply    # installs, then writes
 ```
+
+`provision` and `restore` take the same flag and can be run on their own.
 
 `config/provision.txt` is the manifest: pinned versions, one step per line.
 Moving a version there is a deliberate edit.

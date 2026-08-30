@@ -39,26 +39,21 @@ fmt:
     npx biome format --write .
 
 # A fresh machine, end to end: install what is needed, then write config.
-# Both halves refuse to act without --apply, so read the plan first.
-bootstrap:
-    @echo "--- what would be installed ---"
-    cargo run --quiet -- provision
-    @echo
-    @echo "--- what would be written ---"
-    cargo run --quiet -- restore
-    @echo
-    @echo "Reviewed? Then: just bootstrap-apply"
-
-bootstrap-apply:
-    cargo run --quiet -- provision --apply
-    cargo run --quiet -- restore --apply
+# Prints a plan and changes nothing; pass --apply to act.
+#
+#   just bootstrap            what would happen
+#   just bootstrap --apply    make it happen
+bootstrap *FLAGS:
+    cargo run --quiet -- provision {{FLAGS}}
+    cargo run --quiet -- restore {{FLAGS}}
 
 # What has to be installed before configuration means anything.
-provision:
-    cargo run --quiet -- provision
+provision *FLAGS:
+    cargo run --quiet -- provision {{FLAGS}}
 
-provision-apply:
-    cargo run --quiet -- provision --apply
+# Repository -> machine.
+restore *FLAGS:
+    cargo run --quiet -- restore {{FLAGS}}
 
 # Is this machine's configuration still what the repository holds?
 status:
@@ -67,14 +62,6 @@ status:
 # Machine -> repository. Drift becomes a git diff; review it before committing.
 sync:
     cargo run --quiet -- sync
-
-# Repository -> machine. Prints what it would write and changes nothing.
-restore:
-    cargo run --quiet -- restore
-
-# Repository -> machine, for real. Overwrites live configuration.
-restore-apply:
-    cargo run --quiet -- restore --apply
 
 # Prove the gates do not depend on the ambient PATH.
 doctor:
