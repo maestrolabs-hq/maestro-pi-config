@@ -184,7 +184,7 @@ fn a_plan_is_refused_once_the_repository_moves_under_it() {
         .lines()
         .map(|l| {
             let mut f: Vec<&str> = l.split('\t').collect();
-            if f.len() == 6 {
+            if f.len() == 7 {
                 f[3] = "1";
                 f.join("\t")
             } else {
@@ -209,5 +209,50 @@ fn a_plan_is_refused_once_the_repository_moves_under_it() {
     assert!(
         err.contains("changed in the repository"),
         "it should say why:\n{err}"
+    );
+}
+
+/// The bug this guards: a saved plan reconstructed `templated` by comparing the
+/// action's source against the manifest's *directory* path. For a directory
+/// entry the source is a file inside it, so equality never held, `${HOME}` was
+/// written literally, and the machine never converged. The two apply paths
+/// produced different bytes for the same reviewed plan.
+#[test]
+fn a_saved_plan_expands_home_in_directory_entries_too() {
+    let home = scratch("saved-template-dir");
+    let file = home.join("plan.out");
+    let f = file.display().to_string();
+
+    run(&home, &["plan", "--out", &f]);
+    let (out, ok) = run(&home, &["apply", &f]);
+    assert!(ok, "{out}");
+
+    let script = fs::read_to_string(home.join(".local/bin/start-tts")).expect("script");
+    assert!(
+        !script.contains("${HOME}"),
+        "a saved plan must expand the placeholder, not write it literally:\n{script}"
+    );
+    assert!(
+        script.contains(&home.display().to_string()),
+        "it should point at this machine's home:\n{script}"
+    );
+}
+
+/// Applying a plan must leave nothing to do. This is what "converged" means,
+/// and it is the property the templating bug broke silently.
+#[test]
+fn a_saved_plan_converges() {
+    let home = scratch("saved-converge");
+    let file = home.join("plan.out");
+    let f = file.display().to_string();
+
+    run(&home, &["plan", "--out", &f]);
+    run(&home, &["apply", &f]);
+
+    let (out, ok) = run(&home, &["plan"]);
+    assert!(ok, "{out}");
+    assert!(
+        out.contains("No changes"),
+        "after applying a saved plan nothing should remain:\n{out}"
     );
 }

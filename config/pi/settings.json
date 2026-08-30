@@ -28,7 +28,11 @@
         "skills/productivity/grilling",
         "skills/engineering/wayfinder",
         "skills/engineering/research",
-        "skills/engineering/prototype"
+        "skills/engineering/prototype",
+        "skills/engineering/codebase-design",
+        "skills/engineering/improve-codebase-architecture",
+        "skills/engineering/code-review",
+        "skills/engineering/ask-matt"
       ],
       "prompts": [],
       "themes": []

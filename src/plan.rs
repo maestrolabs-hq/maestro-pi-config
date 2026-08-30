@@ -39,6 +39,7 @@ pub struct Action {
     /// What the target held when this was planned. `None` means it did not
     /// exist. Applying checks this before writing.
     pub observed: Option<u64>,
+    pub templated: bool,
 }
 
 /// FNV-1a. Not for security -- only to notice that bytes moved. Written out
@@ -104,7 +105,14 @@ fn files_under(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-fn consider(plan: &mut Plan, target: PathBuf, wanted: String, executable: bool, source: PathBuf) {
+fn consider(
+    plan: &mut Plan,
+    target: PathBuf,
+    wanted: String,
+    executable: bool,
+    source: PathBuf,
+    templated: bool,
+) {
     let (change, observed) = match fs::read_to_string(&target) {
         Ok(current) if current == wanted => {
             plan.unchanged += 1;
@@ -123,6 +131,7 @@ fn consider(plan: &mut Plan, target: PathBuf, wanted: String, executable: bool, 
         content: wanted,
         executable,
         observed,
+        templated,
     });
 }
 
@@ -150,6 +159,7 @@ pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
                         expand(stored),
                         entry.executable,
                         repo_path.clone(),
+                        entry.templated,
                     );
                 }
             }
@@ -162,6 +172,7 @@ pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
                             expand(stored),
                             entry.executable,
                             repo_path.join(&rel),
+                            entry.templated,
                         );
                     }
                 }
@@ -213,7 +224,7 @@ pub fn save(plan: &Plan, sources: &[(PathBuf, u64)], path: &Path) -> io::Result<
     out.push('\n');
     for (action, (source, source_digest)) in plan.actions.iter().zip(sources) {
         out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
             match action.change {
                 Change::Create => "create",
                 Change::Update => "update",
@@ -225,6 +236,7 @@ pub fn save(plan: &Plan, sources: &[(PathBuf, u64)], path: &Path) -> io::Result<
                 .observed
                 .map_or_else(|| "absent".to_owned(), |d| d.to_string()),
             action.executable,
+            action.templated,
         ));
     }
     fs::write(path, out)
@@ -238,6 +250,9 @@ pub struct SavedAction {
     pub source_digest: u64,
     pub observed: Option<u64>,
     pub executable: bool,
+    /// Carried in the plan rather than recomputed from the manifest: a manifest
+    /// edited between plan and apply must not change what the plan does.
+    pub templated: bool,
 }
 
 pub fn load(path: &Path) -> Result<Vec<SavedAction>, String> {
@@ -250,7 +265,16 @@ pub fn load(path: &Path) -> Result<Vec<SavedAction>, String> {
         .filter(|l| !l.trim().is_empty())
         .map(|line| {
             let f: Vec<&str> = line.split('\t').collect();
-            let [change, target, source, source_digest, observed, executable] = f[..] else {
+            let [
+                change,
+                target,
+                source,
+                source_digest,
+                observed,
+                executable,
+                templated,
+            ] = f[..]
+            else {
                 return Err(format!("malformed plan line: {line}"));
             };
             Ok(SavedAction {
@@ -266,6 +290,7 @@ pub fn load(path: &Path) -> Result<Vec<SavedAction>, String> {
                     .then(|| observed.parse().map_err(|_| "bad digest".to_owned()))
                     .transpose()?,
                 executable: executable == "true",
+                templated: templated == "true",
             })
         })
         .collect()
@@ -275,11 +300,11 @@ pub fn load(path: &Path) -> Result<Vec<SavedAction>, String> {
 ///
 /// This is the whole reason to persist a plan: without these checks an apply
 /// is just a re-plan wearing a reviewed plan's name.
-pub fn apply_saved(
-    actions: &[SavedAction],
-    home: &str,
-    templated: &dyn Fn(&Path) -> bool,
-) -> Result<usize, String> {
+pub fn apply_saved(actions: &[SavedAction], home: &str) -> Result<usize, String> {
+    // Verify everything first, keeping the bytes that were checked. Reading a
+    // second time in the write loop would mean writing content whose digest was
+    // never verified -- which is the guarantee a saved plan exists to give.
+    let mut verified: Vec<(&SavedAction, String)> = Vec::with_capacity(actions.len());
     for a in actions {
         let stored = fs::read_to_string(&a.source)
             .map_err(|e| format!("plan source {} is gone: {e}", a.source.display()))?;
@@ -296,19 +321,20 @@ pub fn apply_saved(
                 a.target.display()
             ));
         }
-    }
-    for a in actions {
-        let stored = fs::read_to_string(&a.source).map_err(|e| e.to_string())?;
-        let content = if templated(&a.source) {
+        let content = if a.templated {
             from_template(&stored, home)
         } else {
             stored
         };
+        verified.push((a, content));
+    }
+
+    for (a, content) in &verified {
         if let Some(parent) = a.target.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         fs::write(&a.target, content).map_err(|e| e.to_string())?;
         set_executable(&a.target, a.executable).map_err(|e| e.to_string())?;
     }
-    Ok(actions.len())
+    Ok(verified.len())
 }

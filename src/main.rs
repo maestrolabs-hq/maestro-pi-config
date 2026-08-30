@@ -151,18 +151,12 @@ Run `just apply` to carry this out."
                         return ExitCode::FAILURE;
                     }
                 };
-                let templated_sources: Vec<std::path::PathBuf> = entries
-                    .iter()
-                    .filter(|e| e.templated)
-                    .map(|e| root.join(e.repo))
-                    .collect();
-                let is_templated = |p: &std::path::Path| templated_sources.iter().any(|t| t == p);
                 println!("Carrying out the saved plan:\n");
                 for a in &saved {
                     println!("  {} {}", a.change.symbol(), a.target.display());
                 }
                 println!();
-                return match plan::apply_saved(&saved, &home_str, &is_templated) {
+                return match plan::apply_saved(&saved, &home_str) {
                     Ok(n) => {
                         println!("Apply complete. {n} file(s) written from {file}.");
                         ExitCode::SUCCESS
