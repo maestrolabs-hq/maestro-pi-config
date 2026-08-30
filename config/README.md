@@ -33,6 +33,17 @@ just bootstrap-apply  # installs, then writes
 `config/provision.txt` is the manifest: pinned versions, one step per line.
 Moving a version there is a deliberate edit.
 
+Every git package is pinned to a ref, so a restore gets the same code rather
+than whatever `main` happened to be that day. Superpowers pins to the tag
+`v6.3.0`; the other two have no tags at their installed commit, so they pin to
+a SHA. The cost is that `pi update` no longer moves them: raising a pin is now
+an edit here, which is the point.
+
+The npm packages are deliberately left unpinned. They resolve by semver from
+published releases rather than a moving branch, and pinning them would trade a
+real benefit -- `pi update` keeping them current -- for reproducibility they
+mostly already have.
+
 Four things it cannot install for you, because they are its prerequisites:
 rustup, Node 24, uv, and pi. Two more are fetched by hand, because guessing a
 release asset name silently installs the wrong thing: `gh` and

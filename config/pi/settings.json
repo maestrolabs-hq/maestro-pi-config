@@ -14,7 +14,7 @@
     "npm:context-mode",
     "npm:pi-claude-bridge",
     "npm:pi-mcp-adapter",
-    "git:github.com/obra/superpowers",
+    "git:github.com/obra/superpowers@v6.3.0",
     {
       "source": "git:github.com/mattpocock/skills@6654f6b60cd9d5be8b54c6fafe44346dabeb3b76",
       "extensions": [],
@@ -33,7 +33,7 @@
       "prompts": [],
       "themes": []
     },
-    "git:github.com/robonuggets/gauntlet-loop"
+    "git:github.com/robonuggets/gauntlet-loop@9b1975a1b8f01981f3f1e6b667ad3aaf907178ea"
   ],
   "tuiMode": "regular"
 }

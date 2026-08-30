@@ -33,9 +33,9 @@ pi npm:@dietrichgebert/ponytail
 pi npm:context-mode
 pi npm:pi-claude-bridge
 pi npm:pi-mcp-adapter
-pi git:github.com/obra/superpowers
+pi git:github.com/obra/superpowers@v6.3.0
 pi git:github.com/mattpocock/skills@6654f6b60cd9d5be8b54c6fafe44346dabeb3b76
-pi git:github.com/robonuggets/gauntlet-loop
+pi git:github.com/robonuggets/gauntlet-loop@9b1975a1b8f01981f3f1e6b667ad3aaf907178ea
 
 # Standalone binaries. Fetched, not built.
 binary github-mcp-server https://github.com/github/github-mcp-server
