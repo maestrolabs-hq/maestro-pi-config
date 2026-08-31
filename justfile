@@ -12,18 +12,13 @@ export PATH := home_directory() / ".cargo" / "bin" + path_sep + home_directory()
 install:
     rustup toolchain install --profile minimal 1.98.0
     rustup component add clippy rustfmt
-    cargo binstall -y prek cargo-deny cargo-machete
-    npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+    cargo binstall -y prek cargo-deny cargo-machete similarity-rs
 
 # Wire the local hooks. Both types come from default_install_hook_types.
 setup:
     prek install --install-hooks
 
 # Run the quality gates. CI runs these same commands, not equivalents.
-#
-# `tsc --noEmit` and `node --test` are configured but absent here until the
-# first shim lands: tsc exits TS18003 with no inputs, and a gate that fails
-# for want of input catches nothing. Biome still covers the JSON.
 check:
     cargo fmt --all --check
     cargo clippy --all-targets --all-features -- -D warnings
@@ -34,7 +29,6 @@ check:
 # Format in place. `check` only verifies.
 fmt:
     cargo fmt --all
-    npx biome format --write .
 
 # What a restore would change on this machine. Reads only, and saves the plan
 # so an apply carries out exactly what was reviewed.
