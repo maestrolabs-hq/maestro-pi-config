@@ -1,0 +1,17 @@
+# Pinning policy.
+#
+# Third-party actions must be pinned by SHA: a tag or branch can be moved by
+# the upstream repository without the reference changing.
+#
+# Our own organisation is pinned by reference instead. The shared workflow in
+# maestrolabs-hq/.github is followed at `@main` deliberately: pinning it by SHA
+# would mean editing three callers every time a pin inside it is updated, which
+# is the duplication the shared workflow exists to remove. The trust boundary
+# is the same one that already governs these repositories -- a compromise of
+# the organisation compromises them regardless of how this line is written.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "maestrolabs-hq/*": ref-pin
+        "*": hash-pin
