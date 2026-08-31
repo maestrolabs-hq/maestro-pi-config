@@ -45,6 +45,38 @@ every action before writing any -- a stale plan leaves the machine untouched.
 `just apply-now --auto-approve` re-plans and acts in one step, for when a saved
 plan is more ceremony than the change deserves.
 
+## Removing it again
+
+`just destroy` is the inverse of apply: it removes the files this tool wrote.
+
+It is narrower than `terraform destroy`, deliberately. Terraform owns its
+resources and can remove them freely. This writes into a home directory, where
+a file may hold work that exists nowhere else -- so a target is removed only
+while it still holds exactly what the repository says it should. A target that
+was edited after it was written is reported and kept:
+
+```text
+pi-config will remove the following files:
+
+  - /home/you/.config/mcp/mcp.json
+
+And will keep these, because they no longer match the repository:
+
+  ! /home/you/.pi/agent/settings.json
+
+Destroy: 7 to remove, 1 kept.
+```
+
+That makes destroy safe to run without first auditing what you changed: the
+worst case is that it leaves more behind than you expected, never less.
+
+Directories emptied by a removal are removed too. One still holding anything
+else was not ours alone, so it stays.
+
+This also closes a gap that existed since the beginning: `apply` converges
+presence, never absence. A file written by an entry that was later deleted from
+the manifest stayed on the machine forever, unmanaged and invisible.
+
 `config/provision.txt` is the manifest: pinned versions, one step per line.
 Moving a version there is a deliberate edit.
 

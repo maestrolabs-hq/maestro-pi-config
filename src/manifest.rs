@@ -51,6 +51,11 @@ impl Entry {
         self
     }
 
+    /// No entry sets this today: `config/bin` was the only one, and its
+    /// scripts were removed. Kept because restoring a captured `bin/`
+    /// directory without the mode is worse than not restoring it -- the file
+    /// arrives, and fails in a way that reads like it is missing.
+    #[cfg_attr(not(test), expect(dead_code, reason = "no entry needs it yet"))]
     fn executable(mut self) -> Self {
         self.executable = true;
         self
@@ -137,9 +142,6 @@ pub fn manifest(layout: &Layout) -> Vec<Entry> {
             home.join(".codegraphcontext").join(".env"),
         )
         .templated(),
-        Entry::dir("config/bin", layout.user_bin.clone())
-            .executable()
-            .templated(),
     ]
 }
 
@@ -200,5 +202,21 @@ mod tests {
                 entry.live.display()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod executable_tests {
+    use super::*;
+
+    /// Guards the builder itself, so the flag cannot quietly stop being set
+    /// while `plan` still reads it.
+    #[test]
+    fn the_builder_sets_the_flag() {
+        let plain = Entry::file("config/x", PathBuf::from("/tmp/x"));
+        assert!(!plain.executable, "entries are not executable by default");
+
+        let script = Entry::file("config/x", PathBuf::from("/tmp/x")).executable();
+        assert!(script.executable, "the builder must set it");
     }
 }

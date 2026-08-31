@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-if pkill -TERM -f '[q]wen-asr-demo'; then
-  printf 'Stop signal sent to Qwen STT.\n'
-else
-  printf 'Qwen STT is not running.\n'
-fi

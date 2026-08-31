@@ -28,12 +28,21 @@ fn src_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Lines before any `#[cfg(test)]` module. Rust colocates unit tests with the
-/// code they cover; counting them would charge a module for being tested.
+/// Lines before the first test module. Rust colocates unit tests with the code
+/// they cover; counting them would charge a module for being tested.
+///
+/// Any cfg naming `test` counts, not just the bare `#[cfg(test)]`. Matching the
+/// literal string charged `plan.rs` for a `#[cfg(all(test, unix))]` module --
+/// the gate doing the exact thing this comment says it must not.
 fn code_lines(path: &Path) -> usize {
     let text = fs::read_to_string(path).expect("read");
     text.lines()
-        .position(|l| l.trim_start().starts_with("#[cfg(test)]"))
+        .position(|l| {
+            let l = l.trim_start();
+            l.starts_with("#[cfg(")
+                && l.split(|c: char| !c.is_alphanumeric() && c != '_')
+                    .any(|tok| tok == "test")
+        })
         .unwrap_or_else(|| text.lines().count())
 }
 

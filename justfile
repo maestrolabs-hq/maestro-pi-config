@@ -44,6 +44,15 @@ apply:
 apply-now *FLAGS:
     cargo run --quiet -- apply {{FLAGS}}
 
+# Remove the files apply wrote. Refuses without approval, and keeps any file
+# that no longer matches the repository -- something edited it, and that edit
+# exists nowhere else.
+#
+#   just destroy                 shows what would go
+#   just destroy --auto-approve  removes it
+destroy *FLAGS:
+    cargo run --quiet -- destroy {{FLAGS}}
+
 # What has to be installed before configuration means anything.
 provision *FLAGS:
     cargo run --quiet -- provision {{FLAGS}}

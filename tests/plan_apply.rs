@@ -231,27 +231,6 @@ fn copy_repo_into(dest: &Path) {
     copy(&src, &dest.join("config"));
 }
 
-#[test]
-fn a_saved_plan_expands_home_in_directory_entries_too() {
-    let home = scratch("saved-template-dir");
-    let file = home.join("plan.out");
-    let f = file.display().to_string();
-
-    run(&home, &["plan", "--out", &f]);
-    let (out, ok) = run(&home, &["apply", &f]);
-    assert!(ok, "{out}");
-
-    let script = fs::read_to_string(home.join(".local/bin/start-tts")).expect("script");
-    assert!(
-        !script.contains("${HOME}"),
-        "a saved plan must expand the placeholder, not write it literally:\n{script}"
-    );
-    assert!(
-        script.contains(&home.display().to_string()),
-        "it should point at this machine's home:\n{script}"
-    );
-}
-
 /// Applying a plan must leave nothing to do. This is what "converged" means,
 /// and it is the property the templating bug broke silently.
 #[test]
@@ -271,26 +250,75 @@ fn a_saved_plan_converges() {
     );
 }
 
-/// A script that lost its executable bit has identical content. Nothing else
-/// would ever repair it: apply only visits actions, and actions only existed
-/// when content differed.
-#[cfg(unix)]
+// ------------------------------------------------------------------ destroy
+
+/// `apply` converges presence: it writes what is missing and corrects what
+/// differs. Nothing ever removed a target, so a file this tool wrote outlived
+/// the entry that produced it -- the machine kept accumulating.
 #[test]
-fn losing_the_executable_bit_is_drift() {
-    use std::os::unix::fs::PermissionsExt;
-    let home = scratch("mode-drift");
+fn destroy_removes_what_apply_wrote() {
+    let home = scratch("destroy");
     run(&home, &["apply", "--auto-approve"]);
+    let settings = home.join(".pi/agent/settings.json");
+    assert!(settings.exists(), "apply should have written it");
 
-    let script = home.join(".local/bin/start-tts");
-    fs::set_permissions(&script, fs::Permissions::from_mode(0o644)).expect("strip +x");
-
-    let (out, _) = run(&home, &["plan"]);
-    assert!(out.contains("1 to change"), "a lost mode is drift:\n{out}");
-
-    run(&home, &["apply", "--auto-approve"]);
-    let mode = fs::metadata(&script).expect("stat").permissions().mode();
+    let (out, ok) = run(&home, &["destroy", "--auto-approve"]);
+    assert!(ok, "{out}");
     assert!(
-        mode & 0o111 != 0,
-        "apply must restore the executable bit, got {mode:o}"
+        !settings.exists(),
+        "destroy must remove what apply wrote:\n{out}"
+    );
+}
+
+/// The dangerous case. A target this tool wrote and the user then edited is no
+/// longer purely ours, and deleting it would lose work that exists nowhere
+/// else. Terraform can destroy freely because it owns its resources; a tool
+/// writing into someone's home directory does not.
+#[test]
+fn destroy_refuses_to_remove_a_file_the_user_changed() {
+    let home = scratch("destroy-edited");
+    run(&home, &["apply", "--auto-approve"]);
+
+    let edited = home.join(".pi/agent/settings.json");
+    fs::write(&edited, "{ \"mine\": true }").expect("edit");
+
+    let (out, ok) = run(&home, &["destroy", "--auto-approve"]);
+    assert!(ok, "an edited file is a refusal, not a failure:\n{out}");
+    assert!(edited.exists(), "it must still be there:\n{out}");
+    assert_eq!(
+        fs::read_to_string(&edited).expect("read"),
+        "{ \"mine\": true }",
+        "and untouched"
+    );
+    assert!(
+        out.contains("kept"),
+        "and destroy must say what it kept and why:\n{out}"
+    );
+}
+
+/// Same contract as apply: showing is not doing.
+#[test]
+fn destroy_without_approval_removes_nothing() {
+    let home = scratch("destroy-unapproved");
+    run(&home, &["apply", "--auto-approve"]);
+    let settings = home.join(".pi/agent/settings.json");
+
+    let (out, ok) = run(&home, &["destroy"]);
+    assert!(!ok, "it must refuse without approval:\n{out}");
+    assert!(settings.exists(), "and remove nothing:\n{out}");
+}
+
+/// Destroying twice is not an error. The second run has nothing to do.
+#[test]
+fn destroy_is_idempotent() {
+    let home = scratch("destroy-twice");
+    run(&home, &["apply", "--auto-approve"]);
+    run(&home, &["destroy", "--auto-approve"]);
+
+    let (out, ok) = run(&home, &["destroy", "--auto-approve"]);
+    assert!(ok, "{out}");
+    assert!(
+        out.contains("Nothing to remove"),
+        "a second destroy has nothing to do:\n{out}"
     );
 }

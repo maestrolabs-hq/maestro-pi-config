@@ -11,6 +11,7 @@
 //! and `apply` is the only code here that writes to the user's machine.
 
 mod apply;
+pub mod destroy;
 mod file;
 
 pub use apply::{apply, apply_saved};
@@ -154,8 +155,14 @@ fn consider(plan: &mut Plan, candidate: Candidate) {
 }
 
 /// Decide what a restore would change. Reads only.
-pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
-    let mut plan = Plan::default();
+/// Every target the manifest resolves to on this machine, with the content it
+/// should hold.
+///
+/// Extracted because `plan` and `destroy` ask different questions of the same
+/// walk: one compares, the other removes. Two copies of this loop would drift
+/// the first time an entry kind was added to only one of them.
+fn candidates(entries: &[Entry], root: &Path, home: &str) -> Vec<Candidate> {
+    let mut out = Vec::new();
     for entry in entries {
         let repo_path = root.join(entry.repo);
         if !repo_path.exists() {
@@ -168,38 +175,33 @@ pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
                 text
             }
         };
-        match entry.kind {
-            Kind::File => {
-                if let Ok(stored) = fs::read_to_string(&repo_path) {
-                    consider(
-                        &mut plan,
-                        Candidate {
-                            target: entry.live.clone(),
-                            wanted: expand(stored),
-                            executable: entry.executable,
-                            source: repo_path.clone(),
-                            templated: entry.templated,
-                        },
-                    );
-                }
+        let mut push = |target: PathBuf, source: PathBuf| {
+            if let Ok(stored) = fs::read_to_string(&source) {
+                out.push(Candidate {
+                    target,
+                    wanted: expand(stored),
+                    executable: entry.executable,
+                    source,
+                    templated: entry.templated,
+                });
             }
+        };
+        match entry.kind {
+            Kind::File => push(entry.live.clone(), repo_path.clone()),
             Kind::Dir => {
                 for rel in files_under(&repo_path) {
-                    if let Ok(stored) = fs::read_to_string(repo_path.join(&rel)) {
-                        consider(
-                            &mut plan,
-                            Candidate {
-                                target: entry.live.join(&rel),
-                                wanted: expand(stored),
-                                executable: entry.executable,
-                                source: repo_path.join(&rel),
-                                templated: entry.templated,
-                            },
-                        );
-                    }
+                    push(entry.live.join(&rel), repo_path.join(&rel));
                 }
             }
         }
+    }
+    out
+}
+
+pub fn plan(entries: &[Entry], root: &Path, home: &str) -> Plan {
+    let mut plan = Plan::default();
+    for candidate in candidates(entries, root, home) {
+        consider(&mut plan, candidate);
     }
     plan
 }
@@ -216,4 +218,81 @@ fn mode_is_correct(path: &Path, executable: bool) -> bool {
 #[cfg(not(unix))]
 fn mode_is_correct(_path: &Path, _executable: bool) -> bool {
     true
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    /// A scratch directory that cleans up after itself.
+    fn scratch(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("pi-config-plan-{name}"));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).expect("mkdir");
+        d
+    }
+
+    /// The executable bit has no entry in the manifest today. It is still
+    /// covered here, because the machinery is what makes a captured `bin/`
+    /// directory restorable, and a script that arrives without +x fails in a
+    /// way that looks like a missing file.
+    ///
+    /// Tested against a fixture this function creates rather than against
+    /// whatever happens to be in `config/`, so deleting a real script cannot
+    /// silently delete the coverage with it -- which is exactly what happened
+    /// to the two integration tests this replaces.
+    #[test]
+    fn a_file_that_lost_its_executable_bit_is_drift() {
+        let dir = scratch("mode");
+        let target = dir.join("script");
+        fs::write(&target, "#!/bin/sh\ntrue\n").expect("write");
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).expect("chmod");
+
+        assert!(
+            mode_is_correct(&target, true),
+            "0755 should satisfy an executable entry"
+        );
+
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o644)).expect("chmod");
+        assert!(
+            !mode_is_correct(&target, true),
+            "0644 must not satisfy an executable entry -- the content is \
+             identical, so nothing else would ever notice"
+        );
+        assert!(
+            mode_is_correct(&target, false),
+            "a file that was never meant to be executable is not drift"
+        );
+    }
+
+    /// Identical content plus a wrong mode still has to produce an action,
+    /// because apply only ever visits actions.
+    #[test]
+    fn identical_content_with_the_wrong_mode_still_plans_a_change() {
+        let dir = scratch("mode-plan");
+        let target = dir.join("script");
+        let body = "#!/bin/sh\ntrue\n";
+        fs::write(&target, body).expect("write");
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o644)).expect("chmod");
+
+        let source = dir.join("source");
+        fs::write(&source, body).expect("write");
+
+        let mut plan = Plan::default();
+        consider(
+            &mut plan,
+            Candidate {
+                target: target.clone(),
+                wanted: body.to_owned(),
+                executable: true,
+                source,
+                templated: false,
+            },
+        );
+
+        assert_eq!(plan.unchanged, 0, "a wrong mode is not 'unchanged'");
+        assert_eq!(plan.actions.len(), 1, "it should plan exactly one change");
+        assert_eq!(plan.actions[0].change, Change::Update);
+    }
 }

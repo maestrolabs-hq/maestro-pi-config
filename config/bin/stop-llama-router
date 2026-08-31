@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-if pkill -TERM -x llama-server; then
-  printf 'Stop signal sent to the llama.cpp router and model workers.\n'
-else
-  printf 'No llama.cpp router is running.\n'
-fi

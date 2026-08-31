@@ -1,6 +1,9 @@
 //! One function per verb. Each takes what it needs, prints its own output
 //! and returns the exit code; none of them parse arguments.
 
+mod destroy;
+pub use destroy::run_destroy;
+
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -129,6 +132,21 @@ pub fn run_apply_saved(file: &str, home: &str) -> ExitCode {
     }
 }
 
+/// Nothing is written or removed without an explicit flag.
+///
+/// One function rather than one per verb, because the rule is the same and the
+/// duplication gate was right to object: an apply that demands approval beside
+/// a destroy that forgot to would be a surprise in the more dangerous
+/// direction.
+fn approved(args: &[String], count: usize, act: &str, recipe: &str) -> bool {
+    if args.iter().any(|a| a == "--auto-approve") {
+        return true;
+    }
+    println!("\nRefusing to {act} {count} file(s) unprompted.");
+    println!("Review the list above, then: just {recipe} --auto-approve");
+    false
+}
+
 pub fn run_apply(entries: &[Entry], root: &Path, home: &str, args: &[String]) -> ExitCode {
     if let Some(file) = args.iter().skip(1).find(|a| !a.starts_with("--")) {
         return run_apply_saved(file, home);
@@ -139,12 +157,7 @@ pub fn run_apply(entries: &[Entry], root: &Path, home: &str, args: &[String]) ->
     if p.is_empty() {
         return ExitCode::SUCCESS;
     }
-    if !args.iter().any(|a| a == "--auto-approve") {
-        println!(
-            "\nRefusing to change {} file(s) unprompted.",
-            p.actions.len()
-        );
-        println!("Review the plan above, then: just apply --auto-approve");
+    if !approved(args, p.actions.len(), "change", "apply") {
         return ExitCode::FAILURE;
     }
     match plan::apply(&p) {
