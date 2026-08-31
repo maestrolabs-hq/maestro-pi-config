@@ -9,8 +9,13 @@ on:
     - cron: "0 6 * * 1"   # Monday 06:00 UTC, clear of the fleet audit at 07:00
   workflow_dispatch:
 
+# A called workflow cannot exceed its caller's permissions, and Scorecard
+# publishes a SARIF result. Granting it here rather than inside the reusable
+# workflow keeps the ceiling visible from the repository it applies to.
 permissions:
   contents: read
+  security-events: write
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}
