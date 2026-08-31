@@ -7,7 +7,6 @@
 > The consumer at the far end is deliberately unnamed: a consumer you can name
 > in the design is one you cannot swap.
 
-
 What this repository owns, and where it stops.
 
 ## Position
