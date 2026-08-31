@@ -38,6 +38,15 @@ const ACCEPTED: &[(&str, &str)] = &[
          no_prompt_template_uses_the_loop_slash_command",
         "Two guards over the same file for different banned words. Same reason.",
     ),
+    (
+        "run_plan <-> run_apply",
+        "Parallel verbs of one CLI: resolve a subject, render it, decide. They \
+         are alike because they are alike. The one rule worth sharing -- that \
+         nothing happens without --auto-approve -- is already `approved`; \
+         collapsing the rest needs a trait over the subject type and makes both \
+         harder to read than the repetition does. run_apply <-> run_destroy \
+         sits just under the threshold for the same reason.",
+    ),
 ];
 
 /// `path:lines function name <-> path:lines function name` -> `name <-> name`.

@@ -29,7 +29,7 @@ fn repo_root() -> PathBuf {
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage: pi-config <status|sync|plan [--out FILE]|apply [FILE|--auto-approve]|provision [--apply]>"
+        "usage: pi-config <status|sync|plan [--out FILE]|apply [FILE|--auto-approve]|destroy [--auto-approve]|provision [--apply]>"
     );
     ExitCode::from(2)
 }
@@ -53,6 +53,7 @@ fn main() -> ExitCode {
         "sync" => cmd::run_sync(&entries, &root, &home_str),
         "plan" => cmd::run_plan(&entries, &root, &home_str, &args),
         "apply" => cmd::run_apply(&entries, &root, &home_str, &args),
+        "destroy" => cmd::run_destroy(&entries, &root, &home_str, &args),
         "provision" => cmd::run_provision(&root, &args),
         _ => usage(),
     }
