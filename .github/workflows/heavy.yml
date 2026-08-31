@@ -1,7 +1,5 @@
 # The heavy tier: evidence, not a gate. Never a required context -- blocking a
 # merge on a long matrix is how a team learns to bypass its own checks.
-# A result older than eight days is not evidence, which is what the weekly
-# schedule is for; workflow_dispatch is how it gets proved before then.
 name: Heavy
 
 on:
@@ -9,20 +7,36 @@ on:
     - cron: "0 6 * * 1"   # Monday 06:00 UTC, clear of the fleet audit at 07:00
   workflow_dispatch:
 
-# A called workflow cannot exceed its caller's permissions, and Scorecard
-# publishes a SARIF result. Granting it here rather than inside the reusable
-# workflow keeps the ceiling visible from the repository it applies to.
 permissions:
   contents: read
-  security-events: write
-  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
+  # Only Scorecard publishes a SARIF result, so only this call is granted the
+  # permissions to do it. A called workflow cannot exceed its caller's
+  # ceiling, and raising the ceiling for the whole file would hand those
+  # rights to every other job as well.
+  common:
+    permissions:
+      contents: read
+      security-events: write
+      id-token: write
+    uses: maestrolabs-hq/.github/.github/workflows/common-heavy.yml@main
+
   heavy:
     uses: maestrolabs-hq/.github/.github/workflows/rust-heavy.yml@main
     with:
       msrv: "1.85"
+
+# The TypeScript tiers are deliberately not called yet. This repository has
+# no .ts files -- tsconfig still points at tools/, which was deleted when the
+# tool became Rust -- so ts-types would check zero files and ts-test would run
+# zero tests. Both would report green while looking at nothing, which is the
+# one thing every gate here exists to avoid.
+#
+# The pi shims are TypeScript by necessity (pi loads only .ts and .js), so
+# they arrive with docs/adr/0001. The gates attach then, and will be the ones
+# already written rather than retrofitted.
