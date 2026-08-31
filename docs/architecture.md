@@ -1,4 +1,12 @@
-# Architecture
+# Architecture *(design, not built)*
+
+> Nothing in this document is implemented. The shim does not exist, and neither
+> does the Maestro side it would talk to. It is written down so the boundary is
+> not re-invented when the first shim is finally written.
+>
+> The consumer at the far end is deliberately unnamed: a consumer you can name
+> in the design is one you cannot swap.
+
 
 What this repository owns, and where it stops.
 
@@ -14,7 +22,7 @@ shim (TypeScript, this repo)
 maestro (Rust, maestro-core)
    │  durable queue → delivery
    ▼
-MemPalace / CodeGraphContext / Graphify   (over MCP)
+the memory consumer / CodeGraphContext / Graphify   (over MCP)
 ```
 
 The shim is the only part of this picture that lives here. Everything below the
