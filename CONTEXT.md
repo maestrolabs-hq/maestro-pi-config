@@ -1,90 +1,61 @@
 # Context
 
-Glossary for maestro-pi-config. Terms only — no implementation detail.
+Glossary for maestro-pi-config. Terms only, no implementation detail.
 
-## Maestro
-
-A framework agents run under. It governs agent behaviour: refusing destructive
-commands, running sanity checks, monitoring, observability, and carrying
-messages outward. It is not specific to pi, and pi is not specific to it.
-
-## Maestro core
-
-The engine of the framework, and the master orchestrator. Owns the `maestro`
-CLI and all logic. Every child project consumes it; it consumes none of them.
-Knows nothing about pi.
-
-## Maestro hook
-
-A governance decision point: a place where Maestro inspects what an agent is
-about to do and may refuse, warn, record, or forward it. Distinct from a pi
-lifecycle event, which is only a notification that something happened in a pi
-session. The two words "hook" refer to different things and must not be
-conflated.
-
-## Child project
-
-Any project that consumes Maestro core. This repository is one.
+Everything below describes something this repository does today. Terms that
+belong to Maestro's design rather than to this tool live in
+[maestro-core](https://github.com/maestrolabs-hq/maestro-core), and are not
+restated here -- a glossary that defines another project's unbuilt vocabulary
+goes stale without anyone noticing.
 
 ## Pi modification
 
 Any change to how pi behaves: settings, MCP server registrations, skills,
-packages, provider setup, and runtime extensions. Every pi modification is
-recorded in this repository, so a machine can be restored from it.
+packages, provider setup, runtime extensions. Every one is recorded here, so a
+machine can be rebuilt from this repository.
 
-## Shim
+## Entry
 
-The TypeScript extension pi loads. Pi loads only `.ts` and `.js`, so the shim
-is the sole entry point into pi's process. A shim holds no policy and makes no
-decisions: it translates a pi lifecycle event into an envelope, hands it to
-Maestro, and waits for the acknowledgement.
+One thing the manifest tracks: a file or a directory, its path on the machine,
+and whether it is templated or executable. The manifest is the complete list of
+what this tool considers part of a pi installation.
 
-## Pi lifecycle event
+## Layout
 
-A notification pi emits as a session proceeds: a session starting, an agent run
-settling, a compaction approaching, a session tearing down. Knowledge of which
-event means what is pi knowledge, and stays in this repository.
+Where a machine keeps the directories entries live under. Resolved once from
+the environment, then passed as data -- so no function deeper in has to reach
+for a variable, and a test can construct one literally.
 
-## Envelope
+## Template
 
-The versioned JSON message a shim emits and Maestro accepts. The boundary
-between this repository and Maestro core. Maestro never learns which pi event
-produced an envelope.
+A captured file with this machine's home directory replaced by `${HOME}`. What
+makes a capture portable: a path baked into a stored file would restore onto
+the wrong machine, or onto no machine at all.
 
 ## Capture
 
-Writing session material into the durable queue. A capture is complete once it
-is durable, before any consumer has seen it.
+Reading the live configuration into the repository. `sync` does this. The
+result is a git diff, reviewed like any other change.
 
-## Durable queue
+## Plan
 
-Maestro's record of captures that have been accepted but not yet delivered. It
-is what makes a capture survive a consumer being unavailable, and it is why
-Maestro sits between a shim and a consumer rather than the shim calling the
-consumer directly.
+What a restore would change, decided before anything is written. Reports only
+real differences. A saved plan records what each target held when it was made,
+so applying it can refuse if either the machine or the repository moved since.
 
-## Watermark
+## Apply
 
-The point in a session's material up to which capture has already happened. A
-capture carries only what is new since the watermark.
+Carrying out a plan. Refuses without explicit approval, and refuses a saved
+plan whose world has shifted. The only code here that writes to the machine.
 
-## Delivery
+## Provision
 
-Handing a captured item to a downstream consumer such as MemPalace. Delivery
-happens after acknowledgement and may fail without losing the capture.
+Installing what must exist before configuration means anything: toolchains,
+binaries, runtimes. Separate from apply because a missing tool is a different
+failure from a stale setting, and reads differently in a report.
 
-## Dead letter
+## Status
 
-A capture that has exhausted its delivery attempts. It is parked and remains
-visible and re-drainable. A capture is never dropped.
-
-## Recall
-
-Reading prior material back at the start of a session. The inverse of capture.
-Bounded, because it competes with the session's working context.
-
-## Wing / Room
-
-How MemPalace files material. A wing is the top-level division and corresponds
-to one project; a room subdivides a wing by kind of material. Recall is scoped
-to the current project's wing by default.
+Whether this machine still matches the repository. Absent counts as drift: a
+machine holding none of the files is not in sync with a repository holding all
+of them.
