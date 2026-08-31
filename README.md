@@ -1,6 +1,6 @@
 <div align="center">
 
-# maestro-pi-config
+# Maestro-Pi-Config
 
 **A machine, rebuildable from a repository**
 
