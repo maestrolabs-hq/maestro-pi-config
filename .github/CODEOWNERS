@@ -14,7 +14,6 @@
 /clippy.toml            @FrancoisLDaigneault
 /deny.toml              @FrancoisLDaigneault
 /rust-toolchain.toml    @FrancoisLDaigneault
-/zizmor.yml             @FrancoisLDaigneault
 
 # Recorded decisions. Editing one is not the same as editing code, and a
 # review of an ADR is a review of the reasoning rather than the diff.

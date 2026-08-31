@@ -40,13 +40,17 @@ extensions/  pi runtime extensions (TypeScript)
 docs/        design notes and runbooks
 ```
 
-## First extension: the memory shim
+## Designed, not built: the memory shim
+
+Nothing below exists yet. It is the design for the first extension, recorded so
+it is not re-derived.
 
 Pi loads only `.ts` and `.js`, so a shim is the sole way into its process. The
-shim holds no policy: it turns a pi lifecycle event into an envelope, hands it to
-`maestro`, and waits for the acknowledgement. Everything behind that boundary —
-the ledger, delivery, retries, and any knowledge of MemPalace — belongs to
-Maestro. See [ADR-0001](./docs/adr/0001-shims-delegate-to-maestro.md).
+shim would hold no policy: it turns a pi lifecycle event into an envelope,
+hands it to `maestro`, and waits for the acknowledgement. Everything behind
+that boundary -- durability, delivery, retries, and any knowledge of which
+consumer receives it -- belongs to Maestro, which has not built it either.
+See [ADR-0001](./docs/adr/0001-shims-delegate-to-maestro.md).
 
 The four events, and why each:
 
