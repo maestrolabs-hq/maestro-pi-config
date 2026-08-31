@@ -71,7 +71,7 @@ one re-send the whole session and push the cost of noticing onto the consumer.
 ## Recall scope
 
 Recall is bounded, because it is injected into the system prompt and competes
-with the session's working context. It is scoped to the current project's wing,
+with the session's working context. It is bounded to the current project's scope,
 so one project's material never lands in another project's session.
 
 ## Failure posture
