@@ -1,0 +1,23 @@
+# The heavy tier: evidence, not a gate. Never a required context -- blocking a
+# merge on a long matrix is how a team learns to bypass its own checks.
+# A result older than eight days is not evidence, which is what the weekly
+# schedule is for; workflow_dispatch is how it gets proved before then.
+name: Heavy
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Monday 06:00 UTC, clear of the fleet audit at 07:00
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  heavy:
+    uses: maestrolabs-hq/.github/.github/workflows/rust-heavy.yml@main
+    with:
+      msrv: "1.85"
