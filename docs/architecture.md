@@ -22,7 +22,7 @@ shim (TypeScript, this repo)
 maestro (Rust, maestro-core)
    │  durable queue → delivery
    ▼
-the memory consumer / CodeGraphContext / Graphify   (over MCP)
+memory sink   graph sink   ...            (over MCP)
 ```
 
 The shim is the only part of this picture that lives here. Everything below the

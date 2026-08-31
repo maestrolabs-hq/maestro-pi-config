@@ -30,8 +30,9 @@ durable queue, acknowledges, and only then delivers to a consumer. Maestro
 never learns which pi event produced an envelope.
 
 Consumers are reached over MCP rather than their command-line interfaces.
-MemPalace, CodeGraphContext and Graphify all speak MCP, so one client
-abstraction serves all three.
+Every consumer this was built against speaks MCP, so one client
+abstraction serves all of them, and adding another is configuration
+rather than code.
 
 The shim waits for the acknowledgement under a hard timeout and never throws.
 Capturing memory must not be able to fail a session or hold it open.
