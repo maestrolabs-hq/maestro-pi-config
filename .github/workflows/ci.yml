@@ -1,5 +1,5 @@
 # The fast tier. Gates live in maestrolabs-hq/.github so one pinned SHA is not
-# three; triggers, cadence, concurrency and permissions stay here, where a
+# four; triggers, cadence, concurrency and permissions stay here, where a
 # reader of this repository can see them.
 name: CI
 
@@ -17,8 +17,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  common:
+    uses: maestrolabs-hq/.github/.github/workflows/common-fast.yml@main
+
   fast:
     uses: maestrolabs-hq/.github/.github/workflows/rust-fast.yml@main
     with:
       duplication-test: duplication
-      node: true
+
+# The TypeScript tiers are deliberately not called yet. This repository has
+# no .ts files -- tsconfig still points at tools/, which was deleted when the
+# tool became Rust -- so ts-types would check zero files and ts-test would run
+# zero tests. Both would report green while looking at nothing, which is the
+# one thing every gate here exists to avoid.
+#
+# The pi shims are TypeScript by necessity (pi loads only .ts and .js), so
+# they arrive with docs/adr/0001. The gates attach then, and will be the ones
+# already written rather than retrofitted.
