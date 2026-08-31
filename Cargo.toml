@@ -1,3 +1,9 @@
+# Captures every post-install change to a pi installation, and restores it.
+#
+# One binary, no library: nothing outside this repository has a reason to link
+# against it. Dependency-free on purpose -- a tool that reinstalls your
+# environment should not need that environment to already work.
+
 [package]
 name = "maestro-pi-config"
 version = "0.1.0"
