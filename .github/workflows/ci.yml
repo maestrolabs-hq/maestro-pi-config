@@ -1,5 +1,6 @@
-# The gates live in maestrolabs-hq/.github so that one pinned SHA is not three.
-# Only what genuinely differs stays here.
+# The fast tier. Gates live in maestrolabs-hq/.github so one pinned SHA is not
+# three; triggers, cadence, concurrency and permissions stay here, where a
+# reader of this repository can see them.
 name: CI
 
 on:
@@ -16,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  gates:
-    uses: maestrolabs-hq/.github/.github/workflows/rust-ci.yml@main
+  fast:
+    uses: maestrolabs-hq/.github/.github/workflows/rust-fast.yml@main
     with:
       duplication-test: duplication
       node: true
