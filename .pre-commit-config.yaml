@@ -5,7 +5,13 @@
 # plain install command wires the merge gate too: a merge that commits on its
 # own runs pre-merge-commit, not pre-commit, and would otherwise bring in
 # changes no gate ever saw.
-default_install_hook_types: [pre-commit, pre-merge-commit]
+# Cheap checks on every commit, expensive ones before a push.
+#
+# A commit that takes a minute is a commit people learn to make with
+# --no-verify, and that habit then applies to the checks that mattered. So
+# formatting, lint and the secret scan run at commit time, and anything that
+# compiles the test tree waits for the push.
+default_install_hook_types: [pre-commit, pre-push, pre-merge-commit]
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -54,33 +60,25 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-push]
       - id: cargo-similarity
         name: similarity-rs (copy-paste, allowlisted)
         entry: cargo test --test duplication
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-push]
       - id: cargo-machete
         name: cargo machete (unused dependencies)
         entry: cargo machete
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-push]
       - id: cargo-deny
         name: cargo deny (advisories, licences, bans, sources)
         entry: cargo deny check
         language: system
         pass_filenames: false
         always_run: true
-      - id: biome-format
-        name: biome format (check only)
-        entry: npx biome format .
-        language: system
-        pass_filenames: false
-        always_run: true
-      - id: biome-lint
-        name: biome lint
-        entry: npx biome lint .
-        language: system
-        pass_filenames: false
-        always_run: true
+        stages: [pre-push]
