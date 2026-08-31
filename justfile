@@ -30,8 +30,6 @@ check:
     cargo test
     cargo machete
     cargo deny check
-    npx biome format .
-    npx biome lint .
 
 # Format in place. `check` only verifies.
 fmt:

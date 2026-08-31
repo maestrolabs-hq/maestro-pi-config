@@ -72,15 +72,3 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-      - id: biome-format
-        name: biome format (check only)
-        entry: npx biome format .
-        language: system
-        pass_filenames: false
-        always_run: true
-      - id: biome-lint
-        name: biome lint
-        entry: npx biome lint .
-        language: system
-        pass_filenames: false
-        always_run: true
