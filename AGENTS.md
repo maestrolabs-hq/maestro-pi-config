@@ -82,8 +82,18 @@ Named, because a shared name makes a code review one word long.
 
 ## Rules that are enforced, not suggested
 
-**No absolute paths.** Anywhere -- code, configuration, task runner, workflow.
-Derive from the environment at runtime. A test fails on this.
+**No path that names a machine.** Anywhere -- code, configuration, task
+runner, workflow. Derive from the environment at runtime: the home directory
+from the environment, the repository root from the working directory. The
+`no-absolute-paths` gate refuses a home directory, a drive letter or a user
+profile, and deliberately allows `/usr`, `/opt`, `/etc`, `/var` and `/tmp`,
+which name a platform rather than a machine. In a test, use a synthetic root
+such as `/somewhere`.
+
+**Every platform the estate claims.** Windows, macOS and Linux, on every pull
+request, as `fast / cross-platform`. WSL is Linux to a binary and is covered
+by the Linux job; what is particular to it is the toolchain, exercised weekly
+by `heavy / wsl-toolchain`.
 
 **English only.** Prose and identifiers. A test scans for Latin diacritics.
 
