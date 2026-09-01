@@ -10,6 +10,61 @@ cannot get back.
 
 ## P0 -- can lose data or execute unreviewed writes
 
+### 0. `destroy` deletes directories it never created, climbing past `$HOME`
+
+`src/plan/destroy.rs:75-83`
+
+```rust
+fn prune_empty_parents(from: &Path) {
+    let mut dir = from.parent();
+    while let Some(d) = dir {
+        if fs::remove_dir(d).is_err() { return; }
+        dir = d.parent();
+    }
+}
+```
+
+There is no root bound. The loop stops only when a directory is non-empty --
+not when it leaves the layout this tool owns. Run against a sandbox home with a
+sentinel planted so the climb could not escape:
+
+```text
+--- destroy ---
+Destroy: 8 to remove, 0 kept.
+Destroy complete. 8 file(s) removed.
+--- verdict ---
+>>> HOME (<scratch>/box/home) WAS DELETED BY destroy
+>>> PARENT OF HOME (<scratch>/box) WAS DELETED BY destroy
+```
+
+It removed the home directory and the directory above it. Neither was created
+by this tool. It stopped only because of the sentinel.
+
+Three written guarantees say this cannot happen:
+
+- `src/plan/destroy.rs:55` -- "only the ones that become empty as a result. A
+  directory holding anything else was not ours alone."
+- `config/README.md:70` -- "the worst case is that it leaves more behind than
+  you expected, **never less**."
+- `src/cmd/destroy.rs:16` -- "That makes destroy safe to run without first
+  checking what you changed."
+
+The bound implemented is "non-empty", not "inside the layout". On a populated
+machine `$HOME` has other contents and the climb stops -- but `~/.config`
+becoming empty is ordinary, and `~/.config` is not ours to remove. In a
+container or a fresh account, `$HOME` goes.
+
+No test catches it. `destroy_is_idempotent` (`tests/plan_apply.rs:310`) runs
+destroy twice and asserts the second prints "Nothing to remove" -- which it
+does, because the directory is gone. Every test's scratch home lives under
+`std::env::temp_dir()`, so the suite performs this upward climb against the
+system temp directory on every `cargo test`.
+
+**Fix:** bound the climb. Pass the `Layout` root into `plan::destroy::run` and
+stop when `d` is no longer a strict descendant -- `d.starts_with(root) && d !=
+root`. Write the failing test first: apply into a scratch home, destroy, assert
+the home directory still exists.
+
 ### 1. A saved plan is an unauthenticated instruction to write anywhere
 
 `src/plan/file.rs:56`, `src/cmd.rs:104`
@@ -125,7 +180,55 @@ deliberate choice rather than an oversight.
 
 ## P2
 
-### 7. `provision.txt` claims versions are pinned; six of thirteen are not
+### 7. `${HOME}` expansion produces invalid JSON on Windows, and the test cannot fail
+
+The template stores `${HOME}` and expands it on restore. On Windows the
+expansion inserts a path containing backslashes into a JSON string without
+escaping, producing a file that does not parse. The test covering the round
+trip asserts on the template form rather than the expanded output, so it passes
+on every platform regardless.
+
+**Fix:** escape the expansion for the target format, and assert on the parsed
+result rather than the string.
+
+### 8. baseline.txt documents one `.pre-commit-config.yaml` divergence; there are four
+
+`maestro-governance/baseline.txt` scopes the entry to two repositories and
+explains one deliberate difference. The three copies actually differ four ways:
+
+| | maestro-core | maestro-governance | maestro-pi-config |
+| --- | --- | --- | --- |
+| `cargo-test` entry | `cargo test --all-targets` | `cargo test --all-targets` | `cargo test` |
+| `cargo-similarity` entry | `--test standards` | `--test standards` | `--test duplication` |
+| structural check | `check-toml` | `check-toml` | `check-json` |
+
+**Fix:** document each divergence or remove it. A scoped baseline entry is how
+a real difference stays visible as a decision; three undocumented ones are how
+it hides as drift.
+
+### 9. `config/README.md` documents ten deleted scripts as present
+
+It also states "Nothing here contains an absolute path" while `config/`
+contains them -- the gate exempts the directory, which is why nothing noticed.
+
+**Fix:** regenerate the inventory from what is actually captured.
+
+### 10. The `config/` exemption is directory-shaped, not provenance-shaped
+
+Every gate skips `config/` because it holds captured third-party state. The
+exemption is by path, so anything placed there is exempt regardless of origin.
+
+**Fix:** state the intent in one place and have each gate cite it, or mark
+captured files explicitly and exempt on the mark.
+
+### 11. Dead captured state
+
+`config/shell/cargo-env.sh` and `Layout.user_bin` are captured and referenced
+by nothing.
+
+**Fix:** delete, or record why they are kept.
+
+### 12. `provision.txt` claims versions are pinned; six of thirteen are not
 
 `config/provision.txt:4`
 
