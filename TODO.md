@@ -241,3 +241,121 @@ two machines a week apart gives two different environments -- exactly what this
 file exists to prevent.
 
 **Fix:** pin the six, or narrow the claim to the ones that are pinned.
+
+---
+
+## Round 2 -- the write path, executed against scratch machines
+
+### 13. `sync` captures a credentials file into a public repository
+
+`src/manifest.rs:140` puts `~/.codegraphcontext/.env` in the capture manifest,
+stored as `config/tools/codegraphcontext/env.template`. `src/config.rs:152`
+writes it verbatim; `as_stored` collapses the home directory and nothing else.
+Four realistic credentials planted and staged:
+
+```text
+== does .gitignore stop it? ==   NOT IGNORED -- it is staged
+== gitleaks 8.24.3 protect --staged ==
+  OPENAI_API_KEY=sk-proj-...              caught
+  ANTHROPIC_API_KEY=sk-ant-api03-...      MISSED
+  FALKORDB_PASSWORD=hunter2               MISSED
+  NEO4J_URI=neo4j+s://user:pw@host:7687   MISSED
+leaks found: 1
+```
+
+`.gitignore:73` ignores `.env` and `.env.*`; the stored filename is
+`env.template`, so those rules never apply. The version tested is the one
+pinned at `.pre-commit-config.yaml:36`.
+
+`config/README.md:121` states *"Credentials never leave the machine they were
+issued on."* The live file is empty today -- that is the state of one machine,
+not a property of the design.
+
+**Why it matters:** this is a public repository and `just sync` is one word. The
+only backstop is entropy-based and misses the two commonest shapes, a bare
+password and a URI with inline credentials, in the one captured file whose
+purpose is to hold secrets.
+
+**Fix:** drop the file from the manifest and keep only the annotated template,
+as `config/INVENTORY.md:58` already does for `auth.json` and `hosts.yml`. If it
+must stay, add a `redacted` flag that blanks every `KEY=value` not on an
+allowlist, and capture through that rather than trusting a scanner.
+
+### 14. An empty environment override makes every managed path relative
+
+`src/manifest.rs:67` guards the home directory against an empty value;
+`:104-116` applies no such guard to `PI_AGENT_DIR`, `XDG_CONFIG_HOME` or
+`PI_CONFIG_BIN_DIR`. `env::var_os` returns `Some("")` for a set-but-empty
+variable -- the ordinary result of `export XDG_CONFIG_HOME="$UNSET_VAR"`. Full
+round trip from an unrelated working directory:
+
+```text
+$ env XDG_CONFIG_HOME= PI_AGENT_DIR= HOME=$SB/home pi-config apply --auto-approve
+  + settings.json          <- relative, not absolute
+  + mcp/mcp.json
+Apply complete. 6 added, 2 changed.        <- the user's own files overwritten
+$ pi-config destroy --auto-approve
+Destroy complete. 8 file(s) removed.       <- working directory emptied
+```
+
+`Entry.live` is documented as *"Absolute path on this machine"* and the module
+header cites ADR-0001, but the derivation yields a relative path and nothing
+checks. The two verbs compose into data loss: `apply` first overwrites the
+foreign file so it matches the repository, which converts `destroy`'s
+protection -- keep anything that no longer matches -- into permission to remove
+it.
+
+`every_entry_is_anchored_under_the_given_home` (`src/manifest.rs:195`) asserts
+exactly the invariant `from_env` breaks, but calls `Layout::under`, the one
+constructor that cannot break it.
+
+**Fix:** apply the empty-value filter to all three overrides, assert
+`entry.live.is_absolute()` at the manifest boundary, and point the test at
+`from_env`.
+
+### 15. A hand-installed skill is never captured, and both verbs report success
+
+`src/config.rs:156` and `src/plan.rs:192` walk the files the *repository*
+already carries, so a file that exists only on the machine is invisible to
+every verb:
+
+```text
+== user installs a new skill ==   .pi/agent/skills/my-new-skill/SKILL.md
+== status ==  exit=0  In sync with this machine.
+== sync ==    exit=0  8 file(s) pulled in.
+== is it in the repository? ==    no
+```
+
+`NORTHSTAR.md:13` promises *"A machine can be rebuilt from the repository."*
+Skills are the category most likely to be added by hand, and this is the one
+failure where the user gets no signal at all.
+
+**Fix:** for a directory entry, walk the union of live and repository trees;
+report a live-only file as new and pull it in.
+
+### 16. Other proven write-path defects
+
+- A saved plan replayed under a different home writes to the old machine's
+  paths with the new machine's home in the contents.
+- A symlink appearing between plan and apply defeats the staleness check and
+  writes outside the home directory.
+- A saved plan applies over a file it swore it would refuse to touch.
+- An unreadable captured file puts the tool in permanent, unfixable drift.
+- `to_template` corrupts any path that merely *starts with* the home directory
+  string.
+- On Windows, capture never collapses the home directory in a JSON file at all.
+- The directory walk follows symlinks with no cycle detection or depth bound.
+- `sync` silently skips files it cannot read and reports success.
+- `cargo test` deletes `$TMPDIR`; PR #21 moves that suite onto Windows and
+  macOS on every pull request.
+
+### 17. Untested guarantees, proved by mutation
+
+Each of these was deleted from a scratch copy and the suite still passed:
+
+- `apply_saved`'s all-or-nothing property.
+- `destroy`'s "unreadable is not absent" guard.
+- The plan-file header check.
+- A whole manifest entry.
+- The executable-bit write path -- only the duplication gate noticed.
+- The saved-plan "machine moved" guarantee, for the case it exists to cover.
