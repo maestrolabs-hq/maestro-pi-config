@@ -185,10 +185,10 @@ mod tests {
 
     #[test]
     fn a_template_round_trips_through_the_home_directory() {
-        let live = "/home/someone/.mempalace/palace";
-        let stored = to_template(live, "/home/someone");
+        let live = "/somewhere/.mempalace/palace";
+        let stored = to_template(live, "/somewhere");
         assert_eq!(stored, "${HOME}/.mempalace/palace");
-        assert_eq!(from_template(&stored, "/home/someone"), live);
+        assert_eq!(from_template(&stored, "/somewhere"), live);
     }
 
     #[test]
