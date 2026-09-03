@@ -248,9 +248,9 @@ file exists to prevent.
 
 ### 13. `sync` captures a credentials file into a public repository
 
-`src/manifest.rs:140` puts `~/.codegraphcontext/.env` in the capture manifest,
-stored as `config/tools/codegraphcontext/env.template`. `src/config.rs:152`
-writes it verbatim; `as_stored` collapses the home directory and nothing else.
+`src/manifest.rs:140` puts the graph sink's `.env` file in the capture
+manifest, stored as that tool's `env.template`. `src/config.rs:152` writes it
+verbatim; `as_stored` collapses the home directory and nothing else.
 Four realistic credentials planted and staged:
 
 ```text
