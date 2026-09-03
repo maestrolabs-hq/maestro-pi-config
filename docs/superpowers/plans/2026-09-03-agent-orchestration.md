@@ -51,7 +51,6 @@ evidence gathered from the installed `pi-subagents` 0.64.0 and
 | `subagents.agentOverridesByProvider.<provider>.<name>` | As specified | `docs/models.md:11`, parsed at `src/agents/agents.ts:1212-1222` |
 | `subagents.maxThinking` | As specified | `docs/models.md:136-147`; levels `off, minimal, low, medium, high, xhigh, max` |
 | frontmatter `fallbackModels` | As specified | `docs/agents.md:311`; block-list form at `docs/agents.md:288-294` |
-| `subagents.modelScope` | **Does not match the spec** | See Task 1 |
 | `subagents.watchdog.main.model` | Requires explicit thinking | `docs/watchdog.md:106` |
 
 Two facts that shape the tasks:
@@ -72,9 +71,17 @@ Two facts that shape the tasks:
 
 ## Task 1 — Validate the configuration schema before writing any configuration
 
-The spec was written from design discussion, not from the parser. One key does
-not survive contact with the implementation. Confirm the rest and record the
-correction before any settings change is made.
+The spec was written from design discussion, not from the parser. Confirm each
+key against the implementation before any settings change is made.
+
+One key has already been resolved this way. The spec originally asked for
+`subagents.modelScope` in a purely advisory `warn` mode; the parser accepts
+no such shape, and `enforce: true` turns an unapproved explicit per-run model
+into a hard error rather than a warning. Rather than adopt a stricter guard
+rail than the one designed, the user dropped `modelScope` from the design
+entirely: nothing in the matrix depends on it, and scope enforcement can be
+revisited if unapproved-model drift actually appears. Neither the spec nor
+this plan configures it.
 
 ### Steps
 
@@ -85,55 +92,6 @@ node -e "console.log(require(process.env.HOME + '/.pi/agent/npm/node_modules/pi-
 ```
 
 Expected: `0.64.0`.
-
-- [ ] Re-read the `modelScope` parser and its documentation.
-
-```sh
-cd "$HOME/.pi/agent/npm/node_modules/pi-subagents"
-sed -n '129,141p;176,205p' src/runs/shared/model-scope.ts
-sed -n '200,231p' docs/models.md
-```
-
-Expected: `parseScopeRule` accepts exactly `enforce`, `strict` and `allow`;
-`parseModelScopeConfig` additionally accepts `agents`. There is no `mode` key
-and no `models` key.
-
-- [ ] Record the correction. The spec asks for:
-
-```jsonc
-"modelScope": { "mode": "warn", "models": [ ... ] }
-```
-
-Neither key exists. The closest supported shape is:
-
-```jsonc
-"modelScope": { "enforce": true, "allow": [ ... ] }
-```
-
-`enforce: true` without `strict: true` is the nearest thing to the spec's
-intent, but it is **not** purely advisory. Per `docs/models.md:221-223`, an
-out-of-scope model that is passed explicitly — a per-run `model`, `--model`,
-or a clarify pick — **errors and aborts the run**. Only models arriving from
-frontmatter, `subagents.defaultModel`, the inherited session model, or a
-fallback chain warn and remain available. Further, `enforce: true` is rejected
-at load time unless at least one non-empty `allow` list is present
-(`src/runs/shared/model-scope.ts:199-202`).
-
-- [ ] Decide the resolution and write it into the task record. Two honest
-      options:
-
-  1. **Adopt `{ "enforce": true, "allow": [...] }`** with the spec's model
-     list rewritten as patterns. Accepts that an unapproved explicit per-run
-     model becomes a hard error rather than a warning. This still satisfies
-     the spec's stated purpose — an unapproved model surfaces visibly — and
-     tightens it for the explicit case.
-  2. **Omit `modelScope` entirely** in this change and raise the discrepancy
-     against the spec. Nothing else in the matrix depends on it; it is a
-     guard rail, not a routing mechanism.
-
-  This plan proceeds with option 1 and marks it as a deliberate, recorded
-  departure from the spec text. **The reviewer of this plan should confirm or
-  overturn that choice before Task 3 runs.**
 
 - [ ] Confirm every model id in the matrix resolves.
 
@@ -158,8 +116,7 @@ because the package registers them at runtime.
 ### Verification
 
 Every row of the table under "Verified runtime facts" is reproduced from the
-installed source, and the `modelScope` decision is recorded with its
-consequence. No file has been modified yet.
+installed source. No file has been modified yet.
 
 ---
 
@@ -347,26 +304,6 @@ Entry::dir("config/pi/agents", pi.join("agents")),
       that Task 2 already placed there, and switch `defaultProvider` to
       `claude-bridge` and `defaultModel` to `claude-fable-5`.
 
-- [ ] Apply the `modelScope` correction from Task 1. Unless the reviewer
-      overturned it, write:
-
-```jsonc
-"modelScope": {
-  "enforce": true,
-  "allow": [
-    "claude-bridge/claude-fable-5",
-    "claude-bridge/claude-sonnet-5",
-    "claude-bridge/claude-opus-5",
-    "openai-codex/gpt-5.5",
-    "openai-codex/gpt-5.3-codex-spark",
-    "openai-codex/gpt-5.6-luna",
-    "openai-codex/gpt-5.6-sol",
-    "openai-codex/gpt-5.6-terra",
-    "llama.cpp/qwen38"
-  ]
-}
-```
-
 - [ ] Confirm the settings file still parses as the runtime expects.
 
 ```sh
@@ -515,15 +452,13 @@ provider.
       `claude-bridge`, the reviewer must resolve to
       `openai-codex/gpt-5.6-terra`.
 
-- [ ] Confirm `modelScope` produces no warning for any approved model.
+- [ ] Confirm the runtime reports no configuration error.
 
 ```text
 subagent({ action: "doctor" })
 ```
 
-Expected: no model-scope warning for the roles above. A warning here means an
-`allow` pattern does not match a resolved id — correct the pattern, never the
-gate.
+Expected: discovery lists every role above with no configuration error.
 
 - [ ] Confirm the watchdog is live.
 
@@ -554,7 +489,7 @@ trigger, cadence off.
 
 Agents list shows `spark` and `adversary`; each role's resolved model in run
 status matches the matrix; the reviewer routes to the opposite family; doctor
-reports no model-scope warning; watchdog status reports enabled with thinking
+reports no configuration error; watchdog status reports enabled with thinking
 `high`. Fallback is recorded as configured-not-proven, with the observation
 method named.
 
