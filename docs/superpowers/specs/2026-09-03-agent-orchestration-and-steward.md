@@ -231,17 +231,23 @@ burns orchestrator turns and context on clerical work.
 
 ### Design
 
-- **A dedicated resident model server.** A second `llama.cpp` server on port
-  8081 serves a small instruction model (Qwen3 0.6B class, quantized, CPU
-  acceptable), permanently loaded. It is deliberately separate from the
-  switchyard router on port 8080, so a steward call never triggers a model
-  swap and never competes with the heavy models. The service unit is
-  documented in the switchyard repository, which governs model servers.
+- **A resident model on the router.** The estate model router — the
+  `maestro-llamacpp` repository, a Rust router exposing one dedicated
+  endpoint per model — serves a small instruction model (Qwen3 0.6B class,
+  quantized, CPU acceptable) declared **resident**: always loaded, never
+  evicted by on-demand swaps. The steward calls that model's dedicated
+  endpoint, for example `http://127.0.0.1:8080/models/qwen3-06b/v1`.
+  Residency provides the isolation a separate process was previously
+  specified for: a steward call never triggers a model swap and never
+  competes with the heavy models. Process and unit governance for model
+  serving lives in the `maestro-llamacpp` repository; the router design
+  itself lives in the `maestro-llamacpp` founding specification.
 - **A Pi extension.** `steward.ts`, governed in this repository. On
   `agent_settled` it sends the round summary plus the current task state to
-  port 8081, using `llama.cpp` constrained decoding with a strict JSON
-  schema, so the output is structurally valid by construction. The operation
-  vocabulary is closed: `add`, `complete`, `block`, `note`, `noop`.
+  the resident model's dedicated endpoint, using `llama.cpp` constrained
+  decoding with a strict JSON schema, so the output is structurally valid by
+  construction. The operation vocabulary is closed: `add`, `complete`,
+  `block`, `note`, `noop`.
 - **Deterministic validation between model and disk.** The extension checks
   every proposed operation and writes exactly one state file. The model never
   touches tools, the shell, or arbitrary paths. Semantic mistakes remain
