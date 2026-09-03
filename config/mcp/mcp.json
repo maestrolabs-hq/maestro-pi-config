@@ -36,14 +36,24 @@
       "args": [
         "global-graph.json"
       ],
-      "cwd": "~/.graphify"
+      "cwd": "${HOME}/workspace/MaestroLabs/.maestro/state/providers/graphify"
     },
     "codegraph": {
       "command": "cgc",
       "args": [
         "mcp",
         "start"
-      ]
+      ],
+      "env": {
+        "CGC_RUNTIME_DB_TYPE": "kuzudb",
+        "CGC_RUNTIME_DB_PATH": "${HOME}/workspace/MaestroLabs/.maestro/state/providers/cgc/kuzudb"
+      }
+    },
+    "semantica": {
+      "command": "semantica-mcp",
+      "env": {
+        "SEMANTICA_KG_PATH": "${HOME}/workspace/MaestroLabs/.maestro/state/providers/semantica/global-graph.json"
+      }
     }
   }
 }

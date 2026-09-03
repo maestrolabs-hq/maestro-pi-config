@@ -247,12 +247,39 @@
         }
       }
     ],
-    "checkedAt": 1788119929710,
+    "checkedAt": 1788400507037,
     "lastModified": 1787917532000,
     "etag": "W/\"7572a78e60b78526600ed2a9b74b579d\""
   },
   "llama.cpp": {
     "models": [
+      {
+        "id": "gemma3",
+        "name": "gemma3",
+        "api": "openai-completions",
+        "provider": "llama.cpp",
+        "baseUrl": "http://127.0.0.1:8080/v1",
+        "reasoning": false,
+        "input": [
+          "text"
+        ],
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "contextWindow": 128000,
+        "maxTokens": 128000,
+        "compat": {
+          "supportsStore": false,
+          "supportsDeveloperRole": false,
+          "supportsReasoningEffort": false,
+          "supportsUsageInStreaming": true,
+          "supportsStrictMode": false,
+          "maxTokensField": "max_tokens"
+        }
+      },
       {
         "id": "gemma4",
         "name": "gemma4",
@@ -310,61 +337,6 @@
         }
       },
       {
-        "id": "qwen36-q6",
-        "name": "qwen36-q6",
-        "api": "openai-completions",
-        "provider": "llama.cpp",
-        "baseUrl": "http://127.0.0.1:8080/v1",
-        "reasoning": false,
-        "input": [
-          "text"
-        ],
-        "cost": {
-          "input": 0,
-          "output": 0,
-          "cacheRead": 0,
-          "cacheWrite": 0
-        },
-        "contextWindow": 128000,
-        "maxTokens": 128000,
-        "compat": {
-          "supportsStore": false,
-          "supportsDeveloperRole": false,
-          "supportsReasoningEffort": false,
-          "supportsUsageInStreaming": true,
-          "supportsStrictMode": false,
-          "maxTokensField": "max_tokens"
-        }
-      },
-      {
-        "id": "qwen36-q8-mtp",
-        "name": "qwen36-q8-mtp",
-        "api": "openai-completions",
-        "provider": "llama.cpp",
-        "baseUrl": "http://127.0.0.1:8080/v1",
-        "reasoning": false,
-        "input": [
-          "text",
-          "image"
-        ],
-        "cost": {
-          "input": 0,
-          "output": 0,
-          "cacheRead": 0,
-          "cacheWrite": 0
-        },
-        "contextWindow": 128000,
-        "maxTokens": 128000,
-        "compat": {
-          "supportsStore": false,
-          "supportsDeveloperRole": false,
-          "supportsReasoningEffort": false,
-          "supportsUsageInStreaming": true,
-          "supportsStrictMode": false,
-          "maxTokensField": "max_tokens"
-        }
-      },
-      {
         "id": "qwen38",
         "name": "qwen38",
         "api": "openai-completions",
@@ -393,8 +365,8 @@
         }
       },
       {
-        "id": "qwen38-uncensored",
-        "name": "qwen38-uncensored",
+        "id": "qwen38-semantic",
+        "name": "qwen38-semantic",
         "api": "openai-completions",
         "provider": "llama.cpp",
         "baseUrl": "http://127.0.0.1:8080/v1",
@@ -409,8 +381,8 @@
           "cacheRead": 0,
           "cacheWrite": 0
         },
-        "contextWindow": 128000,
-        "maxTokens": 128000,
+        "contextWindow": 131072,
+        "maxTokens": 131072,
         "compat": {
           "supportsStore": false,
           "supportsDeveloperRole": false,
@@ -421,35 +393,8 @@
         }
       },
       {
-        "id": "qwopus36",
-        "name": "qwopus36",
-        "api": "openai-completions",
-        "provider": "llama.cpp",
-        "baseUrl": "http://127.0.0.1:8080/v1",
-        "reasoning": false,
-        "input": [
-          "text"
-        ],
-        "cost": {
-          "input": 0,
-          "output": 0,
-          "cacheRead": 0,
-          "cacheWrite": 0
-        },
-        "contextWindow": 128000,
-        "maxTokens": 128000,
-        "compat": {
-          "supportsStore": false,
-          "supportsDeveloperRole": false,
-          "supportsReasoningEffort": false,
-          "supportsUsageInStreaming": true,
-          "supportsStrictMode": false,
-          "maxTokensField": "max_tokens"
-        }
-      },
-      {
-        "id": "qwopus36-coder",
-        "name": "qwopus36-coder",
+        "id": "qwen38-uncensored",
+        "name": "qwen38-uncensored",
         "api": "openai-completions",
         "provider": "llama.cpp",
         "baseUrl": "http://127.0.0.1:8080/v1",
@@ -503,6 +448,6 @@
         }
       }
     ],
-    "checkedAt": 1788121797532
+    "checkedAt": 1788375836153
   }
 }
