@@ -31,6 +31,7 @@ Declared in `config/pi/settings.json`; `pi install` restores them.
 - `git:github.com/obra/superpowers`
 - `git:github.com/mattpocock/skills@6654f6b60cd9d5be8b54c6fafe44346dabeb3b76`
 - `git:github.com/robonuggets/gauntlet-loop`
+- `npm:@plannotator/pi-extension`
 
 ## Python tools (uv)
 

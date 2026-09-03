@@ -7,11 +7,12 @@ should reproduce the same behaviour, minus credentials.
 
 | Path | Restores to | Holds |
 | --- | --- | --- |
-| `pi/settings.json` | `<pi agent dir>/settings.json` | packages, provider, default model, theme |
+| `pi/settings.json` | `<pi agent dir>/settings.json` | packages, provider, default model, theme, the routing matrix and the watchdog |
 | `pi/claude-bridge.json` | `<pi agent dir>/claude-bridge.json` | bridge provider |
-| `pi/models-store.json` | `<pi agent dir>/models-store.json` | model catalogue: 7 openai-codex, 9 llama.cpp |
+| `pi/models-store.json` | `<pi agent dir>/models-store.json` | model catalogue: 7 openai-codex, 7 llama.cpp |
 | `pi/skills/gauntlet-loop/` | `<pi agent dir>/skills/` | the skill, adapted off Claude Code primitives |
-| `mcp/mcp.json` | `<user config dir>/mcp/mcp.json` | seven MCP servers |
+| `pi/agents/` | `<pi agent dir>/agents/` | the two custom agent roles |
+| `mcp/mcp.json` | `<user config dir>/mcp/mcp.json` | eight MCP servers |
 | `tools/mempalace/config.json` | `~/.mempalace/` | wings, rooms, palace location |
 | `tools/codegraphcontext/config.yaml` | `~/.codegraphcontext/` | context mode |
 | `tools/codegraphcontext/env.template` | `~/.codegraphcontext/.env` | backend settings; `${HOME}` expands on restore |
