@@ -72,8 +72,9 @@ Additional decisions:
 - **Thinking ceiling.** `subagents.maxThinking: "xhigh"`. Running
   `gpt-5.6-sol` at `max` stays a deliberate per-dispatch act reserved for the
   hardest consequential decisions, never a standing default.
-- **Model scope.** `subagents.modelScope` in `warn` mode listing the approved
-  models, so an unapproved model surfaces visibly without blocking work.
+- **Model scope.** None configured. The purely advisory mode this design
+  assumed does not exist in the runtime, and the matrix needs no scope
+  enforcement to work; revisit only if unapproved-model drift appears.
 - **Long context.** `claude-bridge/claude-fable-5` (1M) as a per-dispatch
   override for whole-repository audits and giant diffs. Not a standing agent:
   the need is occasional and the override is one field at dispatch time.
@@ -133,20 +134,6 @@ The `subagents` block in the governed `config/pi/settings.json`:
         "fallbackModels": ["claude-bridge/claude-opus-5:high"]
       }
     }
-  },
-  "modelScope": {
-    "mode": "warn",
-    "models": [
-      "claude-bridge/claude-fable-5",
-      "claude-bridge/claude-sonnet-5",
-      "claude-bridge/claude-opus-5",
-      "openai-codex/gpt-5.5",
-      "openai-codex/gpt-5.3-codex-spark",
-      "openai-codex/gpt-5.6-luna",
-      "openai-codex/gpt-5.6-sol",
-      "openai-codex/gpt-5.6-terra",
-      "llama.cpp/qwen38"
-    ]
   }
 }
 ```
