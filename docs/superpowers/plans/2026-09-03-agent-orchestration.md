@@ -546,3 +546,22 @@ git commit -m "docs: record the agent sources and the routing matrix"
   `openai-codex` outage the watchdog stops until its model is switched by
   hand.
 - **The `graphifyy` pin drift** noted in Task 2.
+
+## Live fallback evidence: 2026-09-03
+
+Captured during a real provider outage minutes after the matrix was applied:
+every openai-codex model was quota-exhausted except gpt-5.3-codex-spark. Six
+one-word smoke dispatches resolved as follows.
+
+| Agent | Primary | Resolved | Meaning |
+| --- | --- | --- | --- |
+| spark | gpt-5.3-codex-spark | gpt-5.3-codex-spark (medium) | primary available |
+| worker | gpt-5.6-luna | claude-sonnet-5 (medium) | quota fallback fired |
+| reviewer | gpt-5.6-terra | claude-opus-5 (high) | cross-provider fallback fired |
+| scout | claude-sonnet-5 | claude-sonnet-5 (low) | primary |
+| delegate | claude-sonnet-5 | claude-sonnet-5 (medium) | primary |
+| adversary | claude-opus-5 | claude-opus-5 (xhigh) | primary |
+
+All six dispatches completed and every thinking level matched the configured
+matrix. The degradation the matrix was designed for occurred in production on
+its first day, and no lane died.
