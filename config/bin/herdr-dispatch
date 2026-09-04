@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# Dispatch a prompt to a Pi agent already running in another Herdr pane, wait
+# for its lifecycle to settle, and report the result. Operator tooling for
+# driving work across panes from a single pane; see the herdr skill for the
+# underlying primitives this wraps.
+#
+# Usage: herdr-dispatch <target> <prompt> [--timeout <ms>]
+#   <target>  a pane id (w6:p1), a workspace id (w6), or a live agent name.
+#             A workspace id resolves to that workspace's single pi-kind
+#             agent pane; more than one is an error, not a guess -- pass an
+#             explicit pane id instead.
+#
+# Exit codes:
+#   0  settled idle/done with output printed
+#   1  usage error, resolution failure, or a herdr CLI error
+#   2  (reserved by herdr for its own syntax errors; not raised here)
+#   3  the agent is blocked (or settled into blocked) -- a human must decide
+set -euo pipefail
+
+usage() {
+	printf 'usage: herdr-dispatch <target> <prompt> [--timeout <ms>]\n' >&2
+}
+
+if [ "${HERDR_ENV:-}" != "1" ]; then
+	printf 'herdr-dispatch: not running inside Herdr (HERDR_ENV is not 1)\n' >&2
+	exit 1
+fi
+
+target="${1:-}"
+prompt="${2:-}"
+timeout_ms="120000"
+if [ "$#" -ge 3 ]; then
+	if [ "$3" != "--timeout" ] || [ -z "${4:-}" ]; then
+		usage
+		exit 1
+	fi
+	timeout_ms="$4"
+fi
+if [ -z "$target" ] || [ -z "$prompt" ]; then
+	usage
+	exit 1
+fi
+
+# JSON extraction: prefer jq when present (most direct), fall back to python3
+# (a base system tool, present without any new provisioning) otherwise.
+# There is no third path -- fail with a clear message rather than a fragile
+# hand-rolled parser, since these responses are small and stable enough that
+# either real parser handles them correctly.
+if command -v jq >/dev/null 2>&1; then
+	_json_agent_status() { jq -r '.result.agent.agent_status // empty'; }
+	_json_resolve_pi_pane() {
+		jq -r --arg ws "$1" \
+			'[.result.agents[] | select(.workspace_id == $ws and .agent == "pi")] as $m
+			 | if ($m | length) == 1 then $m[0].pane_id
+			   elif ($m | length) == 0 then "NONE"
+			   else "AMBIGUOUS:" + ([$m[].pane_id] | join(","))
+			   end'
+	}
+	_json_has_error_code() { jq -e --arg code "$1" '.error.code == $code' >/dev/null 2>&1; }
+elif command -v python3 >/dev/null 2>&1; then
+	_json_agent_status() {
+		python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("result",{}).get("agent",{}).get("agent_status",""))'
+	}
+	_json_resolve_pi_pane() {
+		python3 -c '
+import json, sys
+ws = sys.argv[1]
+d = json.load(sys.stdin)
+matches = [a["pane_id"] for a in d.get("result", {}).get("agents", []) if a.get("workspace_id") == ws and a.get("agent") == "pi"]
+if len(matches) == 1:
+    print(matches[0])
+elif len(matches) == 0:
+    print("NONE")
+else:
+    print("AMBIGUOUS:" + ",".join(matches))
+' "$1"
+	}
+	_json_has_error_code() {
+		python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+sys.exit(0 if d.get("error", {}).get("code") == sys.argv[1] else 1)
+' "$1"
+	}
+else
+	printf 'herdr-dispatch: need jq or python3 to read herdr'\''s JSON output; neither is on PATH\n' >&2
+	exit 1
+fi
+
+# Resolve <target> to what `herdr agent` accepts: a pane id, an agent name, or
+# (workspace id case) the pane id of that workspace's one pi-kind agent.
+resolved="$target"
+if [[ "$target" =~ ^w[0-9A-Za-z]+$ ]]; then
+	pane="$(herdr agent list | _json_resolve_pi_pane "$target")"
+	case "$pane" in
+	NONE)
+		printf 'herdr-dispatch: no pi agent found in workspace %s\n' "$target" >&2
+		exit 1
+		;;
+	AMBIGUOUS:*)
+		printf 'herdr-dispatch: more than one pi agent in workspace %s (%s) -- pass a pane id instead\n' \
+			"$target" "${pane#AMBIGUOUS:}" >&2
+		exit 1
+		;;
+	*)
+		resolved="$pane"
+		;;
+	esac
+fi
+
+# Preflight: never send input to an agent already waiting on a human.
+preflight_status="$(herdr agent get "$resolved" | _json_agent_status)"
+if [ "$preflight_status" = "blocked" ]; then
+	printf 'herdr-dispatch: %s is already blocked; not sending input\n' "$resolved" >&2
+	herdr agent read "$resolved" --source recent-unwrapped --lines 200 >&2
+	exit 3
+fi
+
+# Dispatch and wait for the lifecycle to settle. `--wait` alone matches the
+# first settled idle/done/blocked, which is the contract this script exposes.
+prompt_err=""
+if ! prompt_err="$(herdr agent prompt "$resolved" "$prompt" --wait --timeout "$timeout_ms" 2>&1 >/dev/null)"; then
+	if printf '%s' "$prompt_err" | _json_has_error_code "agent_blocked"; then
+		printf 'herdr-dispatch: %s rejected the prompt: already blocked\n' "$resolved" >&2
+		herdr agent read "$resolved" --source recent-unwrapped --lines 200 >&2
+		exit 3
+	fi
+	printf 'herdr-dispatch: prompt failed: %s\n' "$prompt_err" >&2
+	exit 1
+fi
+
+final_status="$(herdr agent get "$resolved" | _json_agent_status)"
+output="$(herdr agent read "$resolved" --source recent-unwrapped --lines 200)"
+
+printf 'target: %s\nstate: %s\n---\n%s\n' "$resolved" "$final_status" "$output"
+
+if [ "$final_status" = "blocked" ]; then
+	exit 3
+fi
+exit 0

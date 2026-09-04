@@ -16,7 +16,7 @@ should reproduce the same behaviour, minus credentials.
 | `tools/mempalace/config.json` | `~/.mempalace/` | wings, rooms, palace location |
 | `tools/codegraphcontext/config.yaml` | `~/.codegraphcontext/` | context mode |
 | `tools/codegraphcontext/env.template` | `~/.codegraphcontext/.env` | backend settings; `${HOME}` expands on restore |
-| `bin/` | a directory on `PATH` | llama router, qwen, STT and TTS start/stop scripts |
+| `bin/` | a directory on `PATH` | `herdr-dispatch`, sending a prompt to a Pi agent in another Herdr pane |
 | `shell/cargo-env.sh` | appended to shell rc | puts our runtime on `PATH` |
 | `INVENTORY.md` | — | versions and where each binary came from |
 
@@ -143,16 +143,38 @@ restore expands it, so the same script works for any user on any machine.
 
 ### Local models are not restored
 
-The scripts under `bin/` start llama.cpp against specific GGUF files. Those
-weights are roughly 207 GB and are not in this repository -- nothing here
-fetches them either.
+`config/pi/models-store.json` restores the *catalogue* of nine local models;
+the catalogue is not the weights. Those weights are roughly 207 GB and are not
+in this repository -- nothing here fetches them either.
 
-A restored machine therefore has working scripts pointing at files it does not
-have. Starting the router will fail, and pi will fail to reach a `llama.cpp`
-provider, until the weights are present under `${HOME}/models/` at the paths the
-scripts name. `config/pi/models-store.json` restores the *catalogue* of nine
-local models; the catalogue is not the weights.
+A restored machine can therefore see the models pi expects but cannot reach
+them until the weights are present under `${HOME}/models/` at the paths the
+catalogue names.
 
-Two paths out: fetch the weights to the same layout, or edit the scripts and the
-catalogue to point at what that machine actually has. Either is deliberate work,
-not something a restore can do for you.
+Two paths out: fetch the weights to the same layout, or edit the catalogue to
+point at what that machine actually has. Either is deliberate work, not
+something a restore can do for you.
+
+### herdr-dispatch
+
+Dispatches a prompt to a Pi agent already running in another Herdr pane, waits
+for its lifecycle to settle, and prints the result -- driving work across
+panes from a single pane instead of switching focus for each step.
+
+```text
+herdr-dispatch <target> <prompt> [--timeout <ms>]
+```
+
+`<target>` is a pane id (`w6:p1`), a workspace id (`w6`, resolved to that
+workspace's one pi-kind agent pane), or a live agent name. A workspace with
+more than one pi agent is refused rather than guessed at; pass a pane id.
+
+Exits `0` once the agent settles idle or done, with its output printed. Exits
+`3`, not `1`, when the agent is or becomes blocked -- a distinct code because
+that case needs a human decision, not a retry; the script never answers a
+blocked dialog on its own. Requires `HERDR_ENV=1`: it refuses to run outside a
+Herdr pane, matching the `herdr` skill's own rule.
+
+Reads JSON with `jq` if present, `python3` otherwise -- both are read-only
+lookups of two fields, not a reason to add a provisioning dependency for one
+script.
