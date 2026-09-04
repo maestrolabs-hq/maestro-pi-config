@@ -51,11 +51,8 @@ impl Entry {
         self
     }
 
-    /// No entry sets this today: `config/bin` was the only one, and its
-    /// scripts were removed. Kept because restoring a captured `bin/`
-    /// directory without the mode is worse than not restoring it -- the file
-    /// arrives, and fails in a way that reads like it is missing.
-    #[cfg_attr(not(test), expect(dead_code, reason = "no entry needs it yet"))]
+    /// Restored with the executable bit set -- otherwise a captured `bin/`
+    /// script arrives and fails in a way that reads like it is missing.
     fn executable(mut self) -> Self {
         self.executable = true;
         self
@@ -143,6 +140,9 @@ pub fn manifest(layout: &Layout) -> Vec<Entry> {
             home.join(".codegraphcontext").join(".env"),
         )
         .templated(),
+        Entry::dir("config/bin", layout.user_bin.clone())
+            .executable()
+            .templated(),
     ]
 }
 
