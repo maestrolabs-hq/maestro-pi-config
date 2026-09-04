@@ -12,12 +12,20 @@ identities, indexes, scores, or results are ever fused. A fanout juxtaposes
 seven labeled answers to the same question; it does not synthesize one answer
 from them. Reading and comparing the rows is the caller's job.
 
-Three verbs are covered: **query** (ask a question), **index/refresh**
-(rebuild or update a provider's graph for the current repository), and
-**status** (health/coverage of each provider's index). Every provider appears
-in every fanout's result array, even when a verb does not apply to it — a
-provider that cannot answer a verb reports why (`ok: null`, a note) rather
-than being silently dropped. Triggering together, honestly, is the point.
+Five fanout verbs are covered: **query** (ask a question), **index/refresh**
+(rebuild or update a provider's graph for the current repository), **status**
+(health/coverage of each provider's index), **validate** (open each provider's
+page or report), and **analyze** (fan derived architectural analysis across the
+providers that compute it). Every provider appears in every fanout's result
+array, even when a verb does not apply to it — a provider that cannot answer a
+verb reports why (`ok: null`, a note) rather than being silently dropped.
+Triggering together, honestly, is the point.
+
+Tools that belong to a single provider — recording decisions, multi-agent
+coordination, document authoring, maintenance — are not fanouts; they are
+listed under **Single-provider capabilities** below. The exhaustive per-tool
+matrix for all seven providers lives in
+`maestro-core/docs/providers/capabilities.md`.
 
 ## The equivalence mapping
 
@@ -88,6 +96,25 @@ async function queryAll(question) {
 
 return await queryAll(QUESTION);
 ```
+
+### Which provider for which question
+
+Two modes: **fan-out compare** (the script above — same question to all seven,
+juxtapose) and **targeted deep-dive** (pick one row below and call that
+provider's tool directly). Use deep-dive for structured or analytical
+questions; fan-out when you want to compare coverage.
+
+| Question shape | Best provider / tool |
+| --- | --- |
+| Who calls X / call graph | CGC `analyze_code_relationships`; Codebase-Memory `trace_path` |
+| Exact source of a symbol | Codebase-Memory `get_code_snippet`; CodeGraph `codegraph_codegraph_explore` |
+| Structured graph query (Cypher) | CGC `execute_cypher_query`; Codebase-Memory `query_graph` |
+| Architecture overview | Codebase-Memory `get_architecture`; Graphify `god_nodes` |
+| Decisions / precedents / causality | Semantica `query_decisions`, `find_precedents`, `get_causal_chain` |
+| Durable memory, people, history | MemPalace `search`, `kg_query`, `kg_timeline` |
+| Cross-repo hubs / shortest path | Graphify `god_nodes`, `shortest_path` |
+| Blast radius of a diff | Codebase-Memory `detect_changes` |
+| Inside one converted document | Docling `search_for_text_in_document_anchors`, `get_overview_of_document_anchors` |
 
 ## Template B — index-all
 
@@ -299,10 +326,95 @@ form Edge requires and derives the distro itself, so nothing here names a fixed
 machine. Off WSL, replace the `"$EDGE" ...` launch with `xdg-open` (Linux) or
 `open` (macOS) per URL — those open one tab each rather than a single window.
 
+## Template E — analyze-all
+
+Architectural analysis fanned across the providers that compute it. Where query
+retrieves, analyze asks each provider for *derived* structure — hotspots,
+complexity, dead code, causal chains, blast radius — and juxtaposes the
+opinions. Only the analytical providers answer; the rest report an honest
+`n/a`.
+
+| Provider | analysis tools |
+| --- | --- |
+| CGC | `cgc_find_most_complex_functions`, `cgc_find_dead_code`, `cgc_calculate_cyclomatic_complexity`, `cgc_analyze_architectural_evolution`, `cgc_simulate_metrics`, `cgc_generate_report` |
+| Graphify | `graphify_god_nodes`, `graphify_shortest_path`, `graphify_read_surprising_connections` |
+| Semantica | `semantica_get_graph_analytics`, `semantica_get_causal_chain`, `semantica_find_precedents`, `semantica_run_reasoning` |
+| Codebase-Memory | `codebase-memory_get_architecture`, `codebase-memory_detect_changes` (git-diff blast radius), `codebase-memory_trace_path` |
+| MemPalace | `mempalace_mempalace_kg_timeline`, `mempalace_mempalace_traverse`, `mempalace_mempalace_find_tunnels` |
+| CodeGraph / Docling | n/a — no derived-analysis surface |
+
+Some analysis tools need arguments (a node, a diff, two endpoints); those are a
+targeted single-provider deep-dive, not a fan-out. The zero-arg, whole-repo
+analyses fan out cleanly. Example — "most central / most complex parts of this
+repo":
+
+```javascript
+async function analyzeAll() {
+  const calls = [
+    { provider: "cgc", fn: () => tools.call("cgc_find_most_complex_functions", {}) },
+    { provider: "graphify", fn: () => tools.call("graphify_god_nodes", {}) },
+    { provider: "semantica", fn: () => tools.call("semantica_get_graph_analytics", {}) },
+    { provider: "codebase-memory", fn: () => tools.call("codebase-memory_get_architecture", {}) },
+  ];
+
+  const results = await Promise.all(
+    calls.map(async ({ provider, fn }) => {
+      try {
+        const res = await fn();
+        return res && res.ok !== false
+          ? { provider, ok: true, data: res.data ?? res }
+          : { provider, ok: false, error: res?.error ?? "unknown error" };
+      } catch (err) {
+        return { provider, ok: false, error: String(err) };
+      }
+    })
+  );
+
+  results.push(
+    { provider: "mempalace", ok: null, note: "n/a for code hotspots; use kg_timeline/traverse/find_tunnels for memory-graph analysis" },
+    { provider: "codegraph", ok: null, note: "n/a: no derived-analysis tool — query via codegraph_codegraph_explore" },
+    { provider: "docling", ok: null, note: "n/a: document conversion only" },
+  );
+
+  for (const r of results) {
+    if (r.ok === true) emit(`${r.provider}: ok`);
+    else if (r.ok === false) emit(`${r.provider}: FAILED — ${r.error}`);
+    else emit(`${r.provider}: ${r.note}`);
+  }
+
+  return results;
+}
+
+return await analyzeAll();
+```
+
+## Single-provider capabilities (not fanouts)
+
+Some tools belong to one provider and have no equivalent elsewhere, so they are
+used directly, never fanned out. Listed here so they are not forgotten; the
+full per-tool matrix is in `maestro-core/docs/providers/capabilities.md`.
+
+- **record / decisions** — Semantica `record_decision`, `find_precedents`;
+  Codebase-Memory `manage_adr`; MemPalace `kg_add`/`kg_supersede`/`kg_invalidate`,
+  `add_drawer`, `checkpoint`, `diary_write`.
+- **coordinate (multi-agent)** — MemPalace `event_append`/`event_list`/
+  `event_wait`/`event_ack`, `artifact_put`/`artifact_get`, `patch_submit`,
+  `mesh_peers`.
+- **author (documents)** — Docling `create_new_docling_document`, the
+  `add_*` builders, `add_table_in_html_format_to_docling_document`,
+  `update_text_of_document_item_at_anchor`, `save_docling_document`.
+- **maintain** — MemPalace `sync` (prune), `delete_by_source`; CGC
+  `watch_directory`/`unwatch_directory`, `switch_context`; Semantica
+  `export_graph`, `update_node`/`delete_node`; Codebase-Memory `delete_project`.
+
+Fanning out a write or a single-provider coordination call would violate the
+no-merge, juxtapose-only contract this skill exists to keep, so these stay out
+of the templates by design.
+
 ## Usage
 
-1. Pick the verb: query (Template A), index/refresh (Template B), or status
-   (Template C).
+1. Pick the verb: query (Template A), index/refresh (Template B), status
+   (Template C), validate (Template D), or analyze (Template E).
 2. For query, substitute the question into `QUESTION`. For index, substitute
    the repository's absolute path into `REPO_PATH` and run both the mcpScript
    and its companion shell block in the same turn — one half without the
@@ -319,6 +431,10 @@ machine. Off WSL, replace the `"$EDGE" ...` launch with `xdg-open` (Linux) or
    `graph.html` (and, optionally, the Semantica explorer) as tabs in one Edge
    window. Pair it with Template C (status-all) to cover the five providers
    that have no page.
+6. To compare architectural analysis, run Template E (analyze-all): pick one
+   analysis question and the matching per-provider tool. Arguments-taking tools
+   (a node, a diff, two endpoints) become a targeted single-provider deep-dive
+   rather than a fan-out.
 
 ## Notes
 
