@@ -82,6 +82,11 @@ pub struct Layout {
     pub pi_agent: PathBuf,
     pub mcp_config: PathBuf,
     pub user_bin: PathBuf,
+    /// Where systemd looks for `--user` unit files: `~/.config/systemd/user`
+    /// by default, or `$XDG_CONFIG_HOME/systemd/user` -- the same base
+    /// `mcp_config` already follows, since both are systemd/XDG-resolved
+    /// paths under the config home.
+    pub systemd_user: PathBuf,
 }
 
 impl Layout {
@@ -92,6 +97,7 @@ impl Layout {
             pi_agent: home.join(".pi").join("agent"),
             mcp_config: home.join(".config").join("mcp"),
             user_bin: home.join(".local").join("bin"),
+            systemd_user: home.join(".config").join("systemd").join("user"),
         }
     }
 
@@ -104,7 +110,9 @@ impl Layout {
             layout.pi_agent = PathBuf::from(dir);
         }
         if let Some(dir) = env::var_os("XDG_CONFIG_HOME") {
-            layout.mcp_config = PathBuf::from(dir).join("mcp");
+            let config_home = PathBuf::from(dir);
+            layout.mcp_config = config_home.join("mcp");
+            layout.systemd_user = config_home.join("systemd").join("user");
         }
         if let Some(dir) = env::var_os("PI_CONFIG_BIN_DIR") {
             layout.user_bin = PathBuf::from(dir);
@@ -127,6 +135,13 @@ pub fn manifest(layout: &Layout) -> Vec<Entry> {
         Entry::dir("config/pi/agents", pi.join("agents")),
         Entry::dir("config/pi/extensions", pi.join("extensions")),
         Entry::file("config/mcp/mcp.json", layout.mcp_config.join("mcp.json")),
+        // No `.templated()`: the unit uses systemd's own `%h` specifier for
+        // the home directory, so the captured content already has no
+        // machine-specific path to collapse or expand.
+        Entry::file(
+            "config/systemd/user/herdr.service",
+            layout.systemd_user.join("herdr.service"),
+        ),
         Entry::file(
             "config/tools/mempalace/config.template.json",
             home.join(".mempalace").join("config.json"),
@@ -171,6 +186,7 @@ mod tests {
         assert_eq!(l.pi_agent, Path::new("/somewhere/.pi/agent"));
         assert_eq!(l.mcp_config, Path::new("/somewhere/.config/mcp"));
         assert_eq!(l.user_bin, Path::new("/somewhere/.local/bin"));
+        assert_eq!(l.systemd_user, Path::new("/somewhere/.config/systemd/user"));
     }
 
     /// Each directory can be relocated on its own, and doing so must not move

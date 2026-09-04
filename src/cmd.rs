@@ -195,9 +195,13 @@ pub fn run_provision(root: &Path, args: &[String]) -> ExitCode {
     for s in &steps {
         if apply {
             println!("  $ {}", s.rendered());
-            if let Err(e) = provision::run(s) {
-                eprintln!("pi-config: {e}");
-                return ExitCode::FAILURE;
+            match provision::run(s) {
+                Ok(provision::Outcome::Ran) => {}
+                Ok(provision::Outcome::Skipped(reason)) => println!("    skipped: {reason}"),
+                Err(e) => {
+                    eprintln!("pi-config: {e}");
+                    return ExitCode::FAILURE;
+                }
             }
         } else {
             println!("  would run  {}", s.rendered());
