@@ -1,7 +1,11 @@
 # ADR 0001: Pi shims delegate to Maestro
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-08-30
+- Superseded: 2026-09-04 — the planned `maestro memory` surface this ADR
+  targets was dropped from maestro-core; no memory-capture pipeline will
+  exist. The delegation this ADR decided has no target to delegate to. Shims
+  stay out of pi, and nothing in this repository currently invokes `maestro`.
 
 ## Context
 

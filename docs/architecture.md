@@ -1,11 +1,11 @@
-# Architecture *(design, not built)*
+# Architecture *(superseded, never built)*
 
-> Nothing in this document is implemented. The shim does not exist, and neither
-> does the Maestro side it would talk to. It is written down so the boundary is
-> not re-invented when the first shim is finally written.
->
-> The consumer at the far end is deliberately unnamed: a consumer you can name
-> in the design is one you cannot swap.
+> This design is superseded — see
+> [ADR 0001](./adr/0001-shims-delegate-to-maestro.md). The planned
+> `maestro memory` surface it targets was dropped from maestro-core, so the
+> shim and the queue below have no target to talk to and will not be built.
+> Nothing in this document is implemented; it is kept as a historical record
+> of the design, not as a plan the shim will follow.
 
 What this repository owns, and where it stops.
 
@@ -75,10 +75,8 @@ so one project's material never lands in another project's session.
 
 ## Failure posture
 
-Capturing memory is never allowed to fail a pi session, hold one open, or
-surface an error in it. Every failure resolves quietly and becomes visible
-through Maestro's own status surface instead.
-
-The cost of that posture: an absent or broken `maestro` is silent from inside
-pi. Operational visibility belongs to `maestro memory status`, not to the
-session.
+Capturing memory was never meant to be allowed to fail a pi session, hold one
+open, or surface an error in it. This design assumed operational visibility
+would belong to a `maestro memory status` surface rather than the session
+itself. That surface will not be built (see ADR 0001), so no such visibility
+exists, and no replacement mechanism is proposed here.
