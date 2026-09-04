@@ -125,6 +125,7 @@ pub fn manifest(layout: &Layout) -> Vec<Entry> {
         Entry::file("config/pi/models-store.json", pi.join("models-store.json")),
         Entry::dir("config/pi/skills", pi.join("skills")),
         Entry::dir("config/pi/agents", pi.join("agents")),
+        Entry::dir("config/pi/extensions", pi.join("extensions")),
         Entry::file("config/mcp/mcp.json", layout.mcp_config.join("mcp.json")),
         Entry::file(
             "config/tools/mempalace/config.template.json",
