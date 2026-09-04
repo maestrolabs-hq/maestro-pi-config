@@ -1,0 +1,11 @@
+[Unit]
+Description=Herdr terminal multiplexer server (headless)
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/herdr server
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

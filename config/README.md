@@ -188,3 +188,28 @@ the herdr version that generated it on this machine. Restoring it onto a
 machine with a different herdr version may not match what that version's
 installer would produce. `herdr integration install pi` is the regeneration
 path when versions drift; re-run it and `sync` to recapture.
+
+### Herdr's autostart is provisioned, not just captured
+
+Capturing `herdr.service` restores the unit file, but a unit only starts
+things once systemd knows to enable it -- that is an action, not a file, so it
+lives in `provision.txt`:
+
+```text
+systemd-user-enable herdr.service
+systemd-user-linger enable
+```
+
+The first runs `systemctl --user enable herdr.service`; the second runs
+`loginctl enable-linger` with no user argument, which targets whoever invokes
+it. That is deliberate: a fixed username in a manifest meant to run on any
+machine would be exactly the kind of machine-specific fact this repository's
+`${HOME}` templating exists to avoid, so the argument on that manifest line
+exists to satisfy the `<kind> <argument>` grammar and is not forwarded to the
+command.
+
+Both steps are marked optional in the provisioner. `systemctl` and `loginctl`
+are systemd, which is Linux-only; on a machine without them, provisioning
+reports `skipped: ... not found on PATH; skipping (Linux/systemd only)` and
+continues, rather than failing a restore over a platform it never claimed to
+autostart on.

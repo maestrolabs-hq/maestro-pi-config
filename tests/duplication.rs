@@ -39,6 +39,14 @@ const ACCEPTED: &[(&str, &str)] = &[
         "Two guards over the same file for different banned words. Same reason.",
     ),
     (
+        "systemd_user_enable_maps_to_systemctl_and_is_optional <-> \
+         systemd_user_linger_maps_to_loginctl_enable_linger_and_is_optional",
+        "Two parse-kind mappings, one per verb of the same autostart step \
+         (enable, linger), each asserting a different program/argument pair \
+         and the shared optional flag. Same reason as the ultracode/loop-\
+         slash-command pair above.",
+    ),
+    (
         "run_plan <-> run_apply",
         "Parallel verbs of one CLI: resolve a subject, render it, decide. They \
          are alike because they are alike. The one rule worth sharing -- that \

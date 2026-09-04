@@ -42,3 +42,8 @@ pi npm:@plannotator/pi-extension
 # Standalone binaries. Fetched, not built.
 binary github-mcp-server https://github.com/github/github-mcp-server
 binary gh https://github.com/cli/cli
+
+# Herdr's autostart unit (config/systemd/user/herdr.service). Both steps are
+# Linux/systemd only and are a reported no-op elsewhere -- see provision.rs.
+systemd-user-enable herdr.service
+systemd-user-linger enable
