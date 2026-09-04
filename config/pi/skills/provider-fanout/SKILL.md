@@ -37,8 +37,8 @@ below are the literal `tools.call` first argument.
 | --- | --- | --- | --- |
 | CGC | **CLI-only, requires the MCP server stopped first** — `cgc_add_code_to_graph({ repo_path })` cannot index a repository that is not already in the graph on this deployment: it fails opaquely ("Tool execution error") and creates no job (`cgc_list_jobs` stays empty, `cgc_list_indexed_repositories` unchanged). It only returns cleanly (`"already indexed"`) as a no-op on a repo already present — that is not indexing, it is a status check in disguise. The only working indexer is the CLI: `cgc --db kuzudb --path <workspace>/.maestro/state/providers/cgc/kuzudb index <repo-path> --summarize`. `--db`/`--path` are **global options before the subcommand**, not `index` flags, and are not read from `CGC_RUNTIME_DB_*` env vars by the CLI (those only affect the MCP server). KuzuDB is single-writer: the CLI fails with a lock error while `cgc mcp start` is connected, so the server must be stopped first, the CLI run per repo, then the server left to respawn lazily on the next MCP call | `cgc_find_code({ query })` (+ `cgc_analyze_code_relationships`, `cgc_execute_cypher_query` for structured questions) | `cgc_list_indexed_repositories()`, `cgc_get_repository_stats({ path })` |
 | CodeGraph | **CLI only** — MCP exposes no indexing tool: `codegraph init --yes` (first run) / `codegraph sync` (incremental); a background watcher then keeps it current | `codegraph_codegraph_explore({ query })` — the live tool name has a doubled `codegraph_` prefix; do not shorten it | **CLI only** — `codegraph status --json`; the MCP `codegraph_status` tool exists but is unlisted by default and unreachable without `CODEGRAPH_MCP_TOOLS` set |
-| Codebase-Memory | `codebase-memory_index_repository({ repo_path })` — the param is `repo_path`, **not** `path` | `codebase-memory_search_graph({ query })` (+ `query_graph` for Cypher-like, `get_architecture()` for a zero-arg overview) | `codebase-memory_index_status({ project })`, `codebase-memory_list_projects()` |
-| Graphify | **CLI only** — the MCP surface is read-only (no build/extract tool exists): `graphify update <path>` (add `--force` after refactors that delete code) | `graphify_query_graph({ query })` | `graphify_graph_stats()` |
+| Codebase-Memory | `codebase-memory_index_repository({ repo_path })` — the param is `repo_path`, **not** `path` | `codebase-memory_search_graph({ project, query })` — `project` (name from `list_projects`) is REQUIRED; every codebase-memory query tool needs it (+ `query_graph`, `trace_path`, `get_code_snippet`, `get_architecture`) | `codebase-memory_index_status({ project })`, `codebase-memory_list_projects()` |
+| Graphify | **CLI only** — the MCP surface is read-only (no build/extract tool exists): `graphify update <path>` (add `--force` after refactors that delete code) | `graphify_query_graph({ question })` — the param is `question`, not `query` (optional `project_path`) | `graphify_graph_stats()` |
 | Semantica | **CLI is broken in 0.6.7, use the native companion script** — `semantica ingest <path> --type repo` forwards `batch_size` (and `output`/`recursive` when given) into git clone options, which the RepoIngestor allowlist rejects; `--type file --recursive` also fails (duplicate `recursive` kwarg). The verified method drives `semantica.context.ContextGraph` directly against `SEMANTICA_KG_PATH` — see the companion script under Template B. The `semantica-mcp` server only loads `SEMANTICA_KG_PATH` at startup, so restart it before a query sees newly ingested nodes | `semantica_query_graph({ query, mode: "search" })` (+ `semantica_query_decisions`) | `semantica_get_graph_summary()` |
 | MemPalace | `mempalace_mempalace_mine({ source, wing })` — the param is `source`, **not** `path`; `wing` is optional and defaults to the source directory name | `mempalace_mempalace_search({ query })` (+ `mempalace_mempalace_kg_query({ entity })` for KG-only lookups) | `mempalace_mempalace_status()`, `mempalace_mempalace_kg_stats()` |
 | Docling | `docling_convert_directory_files_into_docling_document({ source })` — the param is `source`, **not** `directory`; converts, does not index in the graph sense | `docling_search_for_text_in_document_anchors({ document_key, query })` — **scoped to one already-cached document; cannot answer open code questions** | `docling_is_document_in_local_cache({ document_key })` — **per-document only; there is no global "is anything cached" call** |
@@ -56,12 +56,12 @@ Docling is included as an honest `n/a` row — it cannot answer code questions,
 only search within one already-converted document.
 
 ```javascript
-async function queryAll(question) {
+async function queryAll(question, project) {
   const calls = [
     { provider: "cgc", fn: () => tools.call("cgc_find_code", { query: question }) },
     { provider: "codegraph", fn: () => tools.call("codegraph_codegraph_explore", { query: question }) },
-    { provider: "codebase-memory", fn: () => tools.call("codebase-memory_search_graph", { query: question }) },
-    { provider: "graphify", fn: () => tools.call("graphify_query_graph", { query: question }) },
+    { provider: "codebase-memory", fn: () => tools.call("codebase-memory_search_graph", { project, query: question }) },
+    { provider: "graphify", fn: () => tools.call("graphify_query_graph", { question }) },
     { provider: "semantica", fn: () => tools.call("semantica_query_graph", { query: question, mode: "search" }) },
     { provider: "mempalace", fn: () => tools.call("mempalace_mempalace_search", { query: question }) },
   ];
@@ -94,7 +94,7 @@ async function queryAll(question) {
   return results;
 }
 
-return await queryAll(QUESTION);
+return await queryAll(QUESTION, PROJECT);   // PROJECT = codebase-memory project name from codebase-memory_list_projects
 ```
 
 ### Which provider for which question
@@ -115,6 +115,10 @@ questions; fan-out when you want to compare coverage.
 | Cross-repo hubs / shortest path | Graphify `god_nodes`, `shortest_path` |
 | Blast radius of a diff | Codebase-Memory `detect_changes` |
 | Inside one converted document | Docling `search_for_text_in_document_anchors`, `get_overview_of_document_anchors` |
+
+Param quirks: `codebase-memory_*` calls require `project` (from `list_projects`);
+`graphify_query_graph` takes `question`, not `query`; `semantica_query_graph`
+needs `mode: "search"` for search.
 
 ## Template B — index-all
 
