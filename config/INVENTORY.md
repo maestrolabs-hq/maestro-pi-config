@@ -40,6 +40,16 @@ Declared in `config/pi/settings.json`; `pi install` restores them.
 - mempalace v3.8.0
 - specify-cli v1.0.1
 
+The `semantica` tool (installed after this capture) additionally requires the
+spaCy models `en_core_web_md` and `en_core_web_sm` installed into its uv tool
+venv; without them entity/relation extraction silently degrades to a naive
+pattern stub (`UNKNOWN` entities, `related_to` relations). Install via
+`uv pip install --python <semantica tool venv python> <model wheel>` —
+`python -m spacy download` does not work in a uv tool environment.
+`config/provision.txt` has no manifest kind for a spaCy model, so this is a
+manual post-provision step for now; capturing it in provisioning is a
+follow-up.
+
 ## Rust tools (cargo)
 
 - just 1.58.0
