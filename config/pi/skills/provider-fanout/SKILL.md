@@ -117,8 +117,12 @@ questions; fan-out when you want to compare coverage.
 | Inside one converted document | Docling `search_for_text_in_document_anchors`, `get_overview_of_document_anchors` |
 
 Param quirks: `codebase-memory_*` calls require `project` (from `list_projects`);
-`graphify_query_graph` takes `question`, not `query`; `semantica_query_graph`
-needs `mode: "search"` for search.
+`codebase-memory_search_code` takes `pattern` and `trace_path` takes
+`function_name`; `cgc_execute_cypher_query` takes `cypher_query`;
+`graphify_query_graph` takes `question`, not `query` (stats report `links`, not
+`edges`); `semantica_query_graph` needs `mode: "search"` for search, and
+`semantica_get_graph_analytics` is broken on 0.6.7 (PageRank crash — no
+centrality/community analytics).
 
 ## Template B — index-all
 
