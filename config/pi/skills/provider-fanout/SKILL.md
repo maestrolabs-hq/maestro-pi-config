@@ -134,6 +134,11 @@ three CLI providers (see the note after this template).
 
 ```javascript
 async function indexAll(repoPath) {
+  // Guardrail: index only a live repo root — never a built snapshot, a worktree,
+  // or the workspace container. Those hold code that is not on `main`.
+  if (/\/(\.maestro|\.superpowers|\.worktrees|graphify-out)(\/|$)/.test(repoPath)) {
+    throw new Error(`refusing non-live index path: ${repoPath}`);
+  }
   const calls = [
     { provider: "codebase-memory", fn: () => tools.call("codebase-memory_index_repository", { repo_path: repoPath }) },
     { provider: "mempalace", fn: () => tools.call("mempalace_mempalace_mine", { source: repoPath }) },
@@ -181,6 +186,12 @@ after them since it uses its own Python interpreter and does not need to race
 the others:
 
 ```bash
+# Guardrail: only a live repo root — reject snapshot/worktree/container paths.
+case "$REPO_PATH" in
+  */.maestro/*|*/.superpowers/*|*/.worktrees/*) echo "refusing non-live path: $REPO_PATH"; exit 1;;
+esac
+[ -e "$REPO_PATH/.git" ] || { echo "not a repo root (no .git): $REPO_PATH"; exit 1; }
+
 ( codegraph sync || codegraph init --yes ) & \
 ( graphify update "$REPO_PATH" ) & \
 wait
@@ -205,7 +216,7 @@ for p in sorted(REPO.rglob("*")):
     if not p.is_file():
         continue
     rel = p.relative_to(REPO)
-    if rel.parts[0] in {".git", "graphify-out"}:
+    if rel.parts[0] in {".git", "graphify-out", "node_modules", "target", ".superpowers", ".worktrees", ".maestro"}:
         continue
     if p.suffix.lower() not in LANG and p.suffix.lower() != ".txt":
         continue
@@ -442,6 +453,14 @@ of the templates by design.
 
 ## Notes
 
+- **Only ever index a live repo root.** Never `.maestro/state/.staging`,
+  `.superpowers/worktrees`, or the workspace container directory — those hold
+  built snapshots and worktrees whose code is not on `main`, so indexing them
+  makes every provider confidently describe software that does not exist.
+  Template B rejects these paths, and the CGC/CodeGraph indexers must run from a
+  repo root (one holding `.git`), never from the workspace container (which is
+  not a git repo, and whose ignore files do not list `.maestro`/`.superpowers`).
+  This is the exact leak that once put a phantom built supervisor into the graphs.
 - **Never merges provider identities.** Every `docs/providers/*.md` page
   states this as an estate rule; this skill's entire job is to juxtapose
   labeled rows, not fuse them into one graph.
