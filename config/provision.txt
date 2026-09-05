@@ -7,6 +7,12 @@
 # Node 24 LTS, uv, and pi itself.
 
 # Python tools, via uv.
+#
+# Not captured here: semantica needs spaCy models (en_core_web_md,
+# en_core_web_sm) inside its tool venv or extraction silently degrades to a
+# naive stub. No manifest kind covers a model wheel yet -- see
+# INVENTORY.md; install manually with
+# `uv pip install --python <semantica tool venv python> <model wheel>`.
 uv codegraphcontext==0.6.8
 uv graphifyy==0.9.51
 uv mempalace==3.8.0
